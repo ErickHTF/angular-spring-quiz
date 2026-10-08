@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:13.22
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fresh_quiz
+      POSTGRES_USER: fresh
+      POSTGRES_PASSWORD: fresh
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fresh -d fresh_quiz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
