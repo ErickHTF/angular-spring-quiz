@@ -19,8 +19,8 @@ import { Component } from '@angular/core';
           <strong>EventStream</strong>.
         </li>
         <li>
-          Cada <code class="guide-code">state</code> em JSON chega nessa conexão já aberta e atualiza os
-          <em>signals</em> do Angular, que re-renderizam só o que mudou.
+          Cada <code class="guide-code">state</code> em JSON chega nessa conexão já aberta e atualiza um
+          <em>signal</em>; o Angular atualiza só os componentes que leem esse estado.
         </li>
         <li>
           Quando o tempo acaba, o servidor Java revela a resposta e envia um novo

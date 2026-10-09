@@ -22,6 +22,7 @@ import { Podium } from '../ui/podium';
           <span class="score-pill" [class.score-bounce]="scoreAnimating()">
             {{ player()?.score ?? 0 }} pts
             @if (scoreAnimating()) {
+              <!-- Trocar a chave recria o elemento, reiniciando a animação CSS a cada reveal. -->
               @for (key of [floatKey()]; track key) {
                 <span class="points-float">+{{ earnedPoints() }}</span>
               }
@@ -148,7 +149,8 @@ export class PlayerGame {
       });
     });
 
-    // Anima os pontos ganhos quando a resposta é revelada.
+    // Anima os pontos ganhos quando a resposta é revelada. A diferença é medida a cada push de
+    // estado (não só no reveal); senão, outro push durante o reveal repetiria a animação.
     effect(() => {
       const status = this.state()?.status;
       const currentScore = this.player()?.score ?? 0;

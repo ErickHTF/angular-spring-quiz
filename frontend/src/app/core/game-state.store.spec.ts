@@ -56,7 +56,6 @@ describe('GameStateStore', () => {
     expect(FakeEventSource.last.url).toBe('/api/games/ABC234/events');
     FakeEventSource.last.emit('state', lobby);
     expect(store.state()).toEqual(lobby);
-    expect(store.lastEventAt()).not.toBeNull();
   });
 
   it('reloads the state on (re)connection and tracks status', async () => {

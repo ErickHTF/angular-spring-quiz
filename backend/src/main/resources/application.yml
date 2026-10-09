@@ -1,12 +1,10 @@
 spring:
   application:
-    name: fresh-quiz
+    name: angular-spring-quiz
   datasource:
+    # URL JDBC (jdbc:postgresql://...), não o formato postgres:// do projeto Deno original.
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/fresh_quiz}
     username: ${DATABASE_USER:fresh}
     password: ${DATABASE_PASSWORD:fresh}
-  mvc:
-    async:
-      request-timeout: -1
 server:
   port: ${PORT:8080}

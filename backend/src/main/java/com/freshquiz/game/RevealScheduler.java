@@ -50,8 +50,9 @@ public class RevealScheduler {
 				events.publishEvent(new GameChangedEvent(code));
 			}
 			catch (RuntimeException error) {
-				// A partida pode ter mudado entre o agendamento e a execução.
-				log.debug("Reveal da sala {} ignorado", code, error);
+				// Se a partida mudou nesse meio-tempo, revealCurrentQuestion só retorna; chegar aqui
+				// é falha de banco. O timer já saiu do mapa, então a próxima leitura do estado reagenda.
+				log.warn("Falha ao revelar a pergunta da sala {}", code, error);
 			}
 		}, deadlineAt);
 		ScheduledFuture<?> previous = timers.put(gameId, timer);
@@ -72,6 +73,11 @@ public class RevealScheduler {
 		repository.getGame(code).ifPresent(game -> cancel(game.id()));
 	}
 
+	/**
+	 * Passa a pergunta aberta para {@code reveal} e soma os pontos das respostas dela.
+	 * Pode ser chamado em paralelo (timer, "pular" ou um reagendamento): o UPDATE condicional
+	 * deixa só uma chamada mudar o status, e só ela soma a pontuação.
+	 */
 	public void revealCurrentQuestion(String code) {
 		GameRow game = repository.getGame(code).orElse(null);
 		if (game == null || game.status() != GameStatus.QUESTION) return;
