@@ -11,21 +11,8 @@
 	<groupId>com.freshquiz</groupId>
 	<artifactId>backend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>backend</name>
-	<description/>
-	<url/>
-	<licenses>
-		<license/>
-	</licenses>
-	<developers>
-		<developer/>
-	</developers>
-	<scm>
-		<connection/>
-		<developerConnection/>
-		<tag/>
-		<url/>
-	</scm>
+	<name>angular-spring-quiz-backend</name>
+	<description>API e tempo real (SSE) do quiz Angular + Spring Boot</description>
 	<properties>
 		<java.version>21</java.version>
 	</properties>

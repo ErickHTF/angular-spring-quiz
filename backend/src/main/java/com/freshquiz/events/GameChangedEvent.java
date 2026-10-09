@@ -1,5 +1,8 @@
 package com.freshquiz.events;
 
-/** Publicado sempre que o estado de uma sala muda e os clientes SSE precisam ser avisados. */
+/**
+ * Publicado depois de cada ação que pode alterar uma sala (inclusive as que acabam não mudando
+ * nada, como um reveal já feito). O {@link GameEventBroker} reenvia o estado aos clientes SSE dela.
+ */
 public record GameChangedEvent(String code) {
 }

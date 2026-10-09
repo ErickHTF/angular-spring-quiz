@@ -2,6 +2,7 @@ import { Component, computed, effect, inject, input, signal, untracked } from '@
 import { GameStateStore } from '../core/game-state.store';
 import type { PlayerSummary } from '../core/models';
 
+// Lista vazia compartilhada para quando o estado ainda não chegou.
 const NO_PLAYERS: PlayerSummary[] = [];
 
 @Component({
@@ -65,9 +66,11 @@ export class Ranking {
     return connection === 'online' ? 'LIVE' : connection === 'connecting' ? '...' : 'OFF';
   });
 
-  /** Quem subiu de posição e quem pontuou no último reveal, para animar as linhas. */
+  /** Ids de quem subiu de posição no último reveal (anima a linha subindo). */
   protected readonly slideUp = signal<Set<string>>(new Set());
+  /** Ids de quem pontuou no último reveal (brilho na linha e "pop" no placar). */
   protected readonly glow = signal<Set<string>>(new Set());
+  /** Posições e placares do push anterior, para comparar no próximo reveal. */
   private previousPositions = new Map<string, number>();
   private previousScores = new Map<string, number>();
 
@@ -76,8 +79,11 @@ export class Ranking {
       const status = this.store.state()?.status;
       const players = this.players();
 
+      // Só status e jogadores disparam o efeito; ler os sets aqui sem untracked faria o
+      // efeito depender dos próprios sinais que ele escreve.
       untracked(() => {
         if (status === 'question') {
+          // Só escreve quando há o que limpar: um Set novo sempre notifica e re-renderiza.
           if (this.slideUp().size > 0) this.slideUp.set(new Set());
           if (this.glow().size > 0) this.glow.set(new Set());
         }

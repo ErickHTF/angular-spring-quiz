@@ -31,6 +31,7 @@ public class GameEventBroker {
 	}
 
 	public SseEmitter subscribe(String code, Viewer viewer) {
+		// 0 = sem timeout: o stream fica aberto a partida inteira, ignorando o timeout assíncrono padrão.
 		SseEmitter emitter = new SseEmitter(0L);
 		Subscriber subscriber = new Subscriber(emitter, viewer);
 		connections.computeIfAbsent(code, key -> ConcurrentHashMap.newKeySet()).add(subscriber);
@@ -56,6 +57,11 @@ public class GameEventBroker {
 		}
 	}
 
+	/**
+	 * Comentário SSE periódico: mantém a conexão viva em proxies que fecham conexões ociosas e é
+	 * o que descobre clientes que sumiram. Uma escrita para um cliente morto costuma falhar só no
+	 * segundo ping (a primeira ainda cabe no buffer TCP), então a limpeza leva até ~50s.
+	 */
 	@Scheduled(fixedRate = 25_000)
 	public void heartbeat() {
 		connections.values().forEach(subscribers -> subscribers.forEach(subscriber -> {
@@ -76,7 +82,7 @@ public class GameEventBroker {
 			}
 		}
 		catch (IOException | IllegalStateException closed) {
-			// O cliente fechou a conexão; o onError/onCompletion remove o assinante.
+			// O cliente fechou a conexão; o Spring dispara o onError/onCompletion, que remove o assinante.
 			subscriber.emitter().completeWithError(closed);
 		}
 	}

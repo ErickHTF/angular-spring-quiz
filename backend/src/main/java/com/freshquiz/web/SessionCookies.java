@@ -8,7 +8,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 
-/** Cookies HttpOnly que identificam host e jogador em cada sala. */
+/**
+ * Cookies de sessão por sala ({@code fresh_host_CODE} e {@code fresh_player_CODE}) guardando o
+ * token de host ou de jogador. São HttpOnly, SameSite=Lax e valem um dia.
+ */
 public final class SessionCookies {
 
 	private static final Duration MAX_AGE = Duration.ofDays(1);
