@@ -66,7 +66,7 @@ import { Podium } from '../ui/podium';
                     [class.choice-selected]="selected() === choice.id"
                     [class.choice-correct]="correct"
                     [class.choice-wrong]="game.status === 'reveal' && selected() === choice.id && !correct"
-                    [disabled]="submitted() || game.status !== 'question' || timeExpired()"
+                    [disabled]="answered() || game.status !== 'question' || timeExpired()"
                     (click)="answer(choice.id)"
                     type="button"
                   >
@@ -85,7 +85,7 @@ import { Podium } from '../ui/podium';
                   </button>
                 }
               </div>
-              @if (game.status === 'question' && submitted()) {
+              @if (game.status === 'question' && answered()) {
                 <p class="waiting-note">Aguardando os outros jogadores...</p>
               }
             </div>
@@ -123,6 +123,11 @@ export class PlayerGame {
 
   private readonly questionId = computed(() => this.state()?.currentQuestion?.id ?? '');
   protected readonly player = computed(() => this.state()?.players.find((item) => item.id === this.playerId()));
+  /**
+   * Já respondeu a pergunta atual: pelo envio feito nesta tela ou pelo servidor, que mantém a
+   * informação quando a página é recarregada no meio da pergunta.
+   */
+  protected readonly answered = computed(() => this.submitted() || !!this.player()?.hasAnswered);
   protected readonly choices = computed(() => {
     const current = this.state()?.currentQuestion;
     return current ? shuffleChoices(current.choices, `${this.playerId() || 'player'}:${current.id}`) : [];
@@ -130,7 +135,7 @@ export class PlayerGame {
   protected readonly showVotes = computed(
     () =>
       this.state()?.status === 'question' &&
-      this.submitted() &&
+      this.answered() &&
       totalVotes(this.state()?.currentQuestion?.answerCounts) > 0,
   );
 
@@ -172,7 +177,7 @@ export class PlayerGame {
   }
 
   protected async answer(choiceId: string): Promise<void> {
-    if (this.submitted() || this.timeExpired() || this.state()?.status !== 'question') return;
+    if (this.answered() || this.timeExpired() || this.state()?.status !== 'question') return;
     this.selected.set(choiceId);
     try {
       await this.api.answer(this.code(), choiceId);
