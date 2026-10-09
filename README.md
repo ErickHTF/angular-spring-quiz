@@ -5,6 +5,30 @@ estilo Kahoot. É a reescrita do Fresh Quiz original (Deno/Fresh + Preact) com
 **Angular 22** no front e **Java 21 + Spring Boot 4** no back, mantendo as
 regras do jogo, a API, as atualizações por SSE e o PostgreSQL.
 
+## Origem
+
+Port do [freshQuiz](https://github.com/ErickHTF/freshQuiz). Regras do jogo,
+rotas da API (mais `GET /me`), schema e perguntas são os mesmos; o que muda é a
+stack e algumas decisões de implementação:
+
+- **Banco**: no original, `db/init/01-setup.sh` aplica migrações e seed na
+  criação do container (ou via `deno task db:migrate`/`db:seed`); aqui o
+  **Flyway** aplica `V1`–`V3` (schema e seed) na subida do backend.
+- **Acesso a dados**: continua SQL escrito à mão, trocando o cliente `postgres`
+  (tagged templates) pelo `JdbcClient` do Spring, com transações gerenciadas
+  pelo Spring (`@Transactional`/`TransactionTemplate`).
+- **Tempo real**: mesmo desenho de SSE (estado calculado por conexão, heartbeat
+  de 25 s), agora com `SseEmitter`, eventos de aplicação do Spring e o
+  `TaskScheduler` no lugar do `setTimeout` para a revelação.
+- **Front**: o hook `useGameState` (cache global de stores com contagem de
+  referências, Preact signals) virou o serviço `GameStateStore` com signals do
+  Angular, fornecido pela página da sala e fechado no `ngOnDestroy`.
+- **Testes**: os testes de integração do original usam o Postgres local e são
+  pulados se ele não estiver no ar; aqui sobem um Postgres com
+  **Testcontainers** e cobrem também a camada HTTP (MockMvc). O front tem testes
+  Vitest.
+- O deploy na EC2 (systemd + workflows manuais) não foi portado.
+
 ## Requisitos
 
 - Java 21 (o Maven vem pelo wrapper `./mvnw`)
@@ -70,6 +94,24 @@ um Postgres descartável criado pelo Testcontainers (os dados somem ao parar).
 - `frontend/src/app/pages/`: uma página por rota. As páginas de sala fornecem o
   `GameStateStore`, compartilhado pelo jogo e pelo ranking.
 - `frontend/src/app/game/` e `ui/`: componentes do jogo e componentes visuais.
+
+## Como funciona o SSE
+
+1. `GET /api/games/:code/events` registra um `SseEmitter` no `GameEventBroker`,
+   junto com o viewer (host ou jogador) da sessão, e já envia o estado atual.
+2. Toda ação que muda a sala (endpoints do `GameController` ou a revelação do
+   `RevealScheduler`) publica um `GameChangedEvent` depois de concluir a
+   transação.
+3. O broker recebe o evento e, para cada conexão daquela sala, recalcula o
+   estado para aquele viewer e envia um evento `state` — por isso o host vê os
+   votos ao vivo e os jogadores não.
+4. No navegador, o `GameStateStore` escuta `state` e atualiza os signals; ao
+   reconectar, busca `/state` para não perder mudanças.
+
+As conexões ficam em memória (um mapa por código de sala) e o envio é síncrono
+na thread que publicou o evento, então o fan-out vale para uma única instância
+do backend; rodar várias instâncias exigiria um canal compartilhado (por exemplo
+`LISTEN/NOTIFY` do Postgres).
 
 ## Ciclo da partida
 
