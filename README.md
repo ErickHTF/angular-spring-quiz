@@ -1,153 +1,159 @@
 # angular-spring-quiz
 
-**Fresh Quiz**: jogo de perguntas em tempo real sobre fundamentos da web, no
-estilo Kahoot. É a reescrita do Fresh Quiz original (Deno/Fresh + Preact) com
-**Angular 22** no front e **Java 21 + Spring Boot 4** no back, mantendo as
-regras do jogo, a API, as atualizações por SSE e o PostgreSQL.
+**Fresh Quiz**: a Kahoot-style real-time quiz game about web fundamentals. It's
+a rewrite of the original Fresh Quiz (Deno/Fresh + Preact) with **Angular 22**
+on the front end and **Java 21 + Spring Boot 4** on the back end, keeping the
+game rules, the API, the SSE updates and PostgreSQL.
 
-## Origem
+## Origin
 
-Port do [freshQuiz](https://github.com/ErickHTF/freshQuiz). Regras do jogo,
-rotas da API (mais `GET /me`), schema e perguntas são os mesmos; o que muda é a
-stack e algumas decisões de implementação:
+Port of [freshQuiz](https://github.com/ErickHTF/freshQuiz). Game rules, API
+routes (plus `GET /me`), schema and questions are the same; what changes is the
+stack and a few implementation decisions:
 
-- **Banco**: no original, `db/init/01-setup.sh` aplica migrações e seed na
-  criação do container (ou via `deno task db:migrate`/`db:seed`); aqui o
-  **Flyway** aplica `V1`–`V3` (schema e seed) na subida do backend.
-- **Acesso a dados**: continua SQL escrito à mão, trocando o cliente `postgres`
-  (tagged templates) pelo `JdbcClient` do Spring, com transações gerenciadas
-  pelo Spring (`@Transactional`/`TransactionTemplate`).
-- **Tempo real**: mesmo desenho de SSE (estado calculado por conexão, heartbeat
-  de 25 s), agora com `SseEmitter`, eventos de aplicação do Spring e o
-  `TaskScheduler` no lugar do `setTimeout` para a revelação.
-- **Front**: o hook `useGameState` (cache global de stores com contagem de
-  referências, Preact signals) virou o serviço `GameStateStore` com signals do
-  Angular, fornecido pela página da sala e fechado no `ngOnDestroy`.
-- **Testes**: os testes de integração do original usam o Postgres local e são
-  pulados se ele não estiver no ar; aqui sobem um Postgres com
-  **Testcontainers** e cobrem também a camada HTTP (MockMvc). O front tem testes
-  Vitest.
-- O deploy na EC2 (systemd + workflows manuais) não foi portado.
+- **Database**: in the original, `db/init/01-setup.sh` applies migrations and
+  seed when the container is created (or via `deno task db:migrate`/`db:seed`);
+  here **Flyway** applies `V1`–`V3` (schema and seed) when the backend starts.
+- **Data access**: still hand-written SQL, swapping the `postgres` client
+  (tagged templates) for Spring's `JdbcClient`, with Spring-managed
+  transactions (`@Transactional`/`TransactionTemplate`).
+- **Real time**: same SSE design (state computed per connection, 25 s
+  heartbeat), now with `SseEmitter`, Spring application events and
+  `TaskScheduler` instead of `setTimeout` for the reveal.
+- **Front end**: the `useGameState` hook (global reference-counted store cache,
+  Preact signals) became the `GameStateStore` service with Angular signals,
+  provided by the room page and closed in `ngOnDestroy`.
+- **Tests**: the original's integration tests use the local Postgres and are
+  skipped if it isn't running; here they spin up Postgres with
+  **Testcontainers** and also cover the HTTP layer (MockMvc). The front end has
+  Vitest tests.
+- The EC2 deploy (systemd + manual workflows) was not ported.
 
-## Requisitos
+## Requirements
 
-- Java 21 (o Maven vem pelo wrapper `./mvnw`)
-- Node `^22.22.3`, `^24.15.0` ou `>=26` (exigência do Angular 22) e npm
-- Docker (Postgres local e Testcontainers nos testes)
+- Java 21 (Maven comes through the `./mvnw` wrapper)
+- Node `^22.22.3`, `^24.15.0` or `>=26` (required by Angular 22) and npm
+- Docker (local Postgres and Testcontainers in the tests)
 
-## Desenvolvimento
+## Development
 
-Em três terminais, a partir da raiz do repositório:
+In three terminals, from the repository root:
 
 ```bash
-docker compose up -d                          # Postgres na porta 5433
-cd backend && ./mvnw spring-boot:run          # API em http://localhost:8080
-cd frontend && npm install && npm start       # app em http://localhost:4200
+docker compose up -d                          # Postgres on port 5433
+cd backend && ./mvnw spring-boot:run          # API at http://localhost:8080
+cd frontend && npm install && npm start       # app at http://localhost:4200
 ```
 
-Abra `http://localhost:4200/` para entrar em uma partida ou `/host` para criar
-uma sala. O `ng serve` usa `frontend/proxy.conf.json` para encaminhar `/api` e
-`/health` ao Spring: o navegador enxerga uma única origem, então os cookies
-HttpOnly e o `EventSource` funcionam sem CORS.
+Open `http://localhost:4200/` to join a game or `/host` to create a room.
+`ng serve` uses `frontend/proxy.conf.json` to forward `/api` and `/health` to
+Spring: the browser sees a single origin, so HttpOnly cookies and
+`EventSource` work without CORS.
 
-O schema e o quiz inicial (16 perguntas) são aplicados pelo **Flyway** quando o
-backend sobe (`backend/src/main/resources/db/migration`). Para recriar o banco
-do zero (apaga os dados): `docker compose down -v && docker compose up -d`.
+The schema and the initial quiz (16 questions) are applied by **Flyway** when
+the backend starts (`backend/src/main/resources/db/migration`). To recreate the
+database from scratch (wipes the data):
+`docker compose down -v && docker compose up -d`.
 
-O compose do projeto original também publica a porta `5433`; derrube um antes
-de subir o outro.
+The original project's compose file also publishes port `5433`; stop one
+before starting the other.
 
-Sem docker-compose, `cd backend && ./mvnw spring-boot:test-run` sobe a API com
-um Postgres descartável criado pelo Testcontainers (os dados somem ao parar).
+Without docker-compose, `cd backend && ./mvnw spring-boot:test-run` starts the
+API with a throwaway Postgres created by Testcontainers (data is lost when it
+stops).
 
-### Configuração do backend
+### Backend configuration
 
-| Variável            | Padrão                                         |
+| Variable            | Default                                        |
 | ------------------- | ---------------------------------------------- |
 | `DATABASE_URL`      | `jdbc:postgresql://localhost:5433/fresh_quiz`  |
 | `DATABASE_USER`     | `fresh`                                        |
 | `DATABASE_PASSWORD` | `fresh`                                        |
 | `PORT`              | `8080`                                         |
 
-`DATABASE_URL` é uma URL JDBC (`jdbc:postgresql://...`), não o formato
-`postgres://` usado no projeto original.
+`DATABASE_URL` is a JDBC URL (`jdbc:postgresql://...`), not the `postgres://`
+format used in the original project.
 
-## Testes
+## Tests
 
-- `cd backend && ./mvnw test`: pontuação (unidade) e integração com
-  Testcontainers (ciclo da partida, prazos, revelação por timer, "pular",
-  autorização, cookies e formato dos erros). Precisa do Docker rodando.
-- `cd frontend && npm test -- --watch=false`: Vitest (embaralhamento, votos e
-  store SSE).
-- Carga: veja [`loadtest/README.md`](loadtest/README.md).
+- `cd backend && ./mvnw test`: scoring (unit) and integration with
+  Testcontainers (game lifecycle, deadlines, timed reveal, "skip",
+  authorization, cookies and error format). Requires Docker running.
+- `cd frontend && npm test -- --watch=false`: Vitest (shuffling, votes and SSE
+  store).
+- Load: see [`loadtest/README.md`](loadtest/README.md).
 
-## Estrutura
+## Structure
 
-- `backend/src/main/java/com/freshquiz/game/`: domínio. `GameService` (regras),
-  `GameRepository` (SQL com `JdbcClient`), `RevealScheduler` (revelação por
-  timer) e `Scoring`.
-- `backend/.../events/`: `GameEventBroker` mantém as conexões SSE por sala e
-  envia a cada conexão o estado visto por ela (o host vê os votos ao vivo).
-- `backend/.../web/`: controllers REST, cookies de sessão e tratamento de erros.
-- `frontend/src/app/core/`: modelos, cliente HTTP, `GameStateStore` (SSE →
-  signals), embaralhamento e votos.
-- `frontend/src/app/pages/`: uma página por rota. As páginas de sala fornecem o
-  `GameStateStore`, compartilhado pelo jogo e pelo ranking.
-- `frontend/src/app/game/` e `ui/`: componentes do jogo e componentes visuais.
+- `backend/src/main/java/com/freshquiz/game/`: domain. `GameService` (rules),
+  `GameRepository` (SQL with `JdbcClient`), `RevealScheduler` (timed reveal)
+  and `Scoring`.
+- `backend/.../events/`: `GameEventBroker` keeps the SSE connections per room
+  and sends each connection the state as seen by it (the host sees votes live).
+- `backend/.../web/`: REST controllers, session cookies and error handling.
+- `frontend/src/app/core/`: models, HTTP client, `GameStateStore` (SSE →
+  signals), shuffling and votes.
+- `frontend/src/app/pages/`: one page per route. Room pages provide the
+  `GameStateStore`, shared by the game and the ranking.
+- `frontend/src/app/game/` and `ui/`: game components and visual components.
 
-## Como funciona o SSE
+## How SSE Works
 
-1. `GET /api/games/:code/events` registra um `SseEmitter` no `GameEventBroker`,
-   junto com o viewer (host ou jogador) da sessão, e já envia o estado atual.
-2. Toda ação que muda a sala (endpoints do `GameController` ou a revelação do
-   `RevealScheduler`) publica um `GameChangedEvent` depois de concluir a
-   transação.
-3. O broker recebe o evento e, para cada conexão daquela sala, recalcula o
-   estado para aquele viewer e envia um evento `state` — por isso o host vê os
-   votos ao vivo e os jogadores não.
-4. No navegador, o `GameStateStore` escuta `state` e atualiza os signals; ao
-   reconectar, busca `/state` para não perder mudanças.
+1. `GET /api/games/:code/events` registers an `SseEmitter` in the
+   `GameEventBroker`, together with the session's viewer (host or player), and
+   immediately sends the current state.
+2. Every action that changes the room (`GameController` endpoints or the
+   `RevealScheduler` reveal) publishes a `GameChangedEvent` after the
+   transaction commits.
+3. The broker receives the event and, for each connection in that room,
+   recomputes the state for that viewer and sends a `state` event — that's why
+   the host sees votes live and players don't.
+4. In the browser, `GameStateStore` listens for `state` and updates the
+   signals; on reconnect, it fetches `/state` so no changes are missed.
 
-As conexões ficam em memória (um mapa por código de sala) e o envio é síncrono
-na thread que publicou o evento, então o fan-out vale para uma única instância
-do backend; rodar várias instâncias exigiria um canal compartilhado (por exemplo
-`LISTEN/NOTIFY` do Postgres).
+Connections live in memory (one map per room code) and sending is synchronous
+on the thread that published the event, so the fan-out works for a single
+backend instance; running several instances would require a shared channel
+(for example Postgres `LISTEN/NOTIFY`).
 
-## Ciclo da partida
+## Game Lifecycle
 
-- O host cria a sala em `/host` e compartilha o código. Jogadores entram pela
-  página inicial com um apelido, só enquanto a sala está no lobby.
-- O host inicia o quiz e acompanha a votação ao vivo. Cada jogador vê as
-  alternativas em uma ordem própria e só vê os votos depois de responder.
-- Acerto vale 1000 pontos mais até 500 de bônus, proporcional à rapidez; erro
-  vale 0. Os pontos entram no placar na revelação.
-- A resposta é revelada quando o tempo acaba, ou antes, com "Pular pergunta"
-  (que mantém os pontos de quem já respondeu). Depois o host avança ou encerra.
-- "Jogar novamente" volta ao lobby zerando placar e respostas, com os mesmos
-  jogadores.
-- "Sair" apaga os cookies da sessão; o jogador continua listado no ranking.
-- Os timers de revelação ficam em memória: reiniciar o backend os perde, e eles
-  são reagendados na próxima leitura do estado da sala.
+- The host creates the room at `/host` and shares the code. Players join from
+  the home page with a nickname, only while the room is in the lobby.
+- The host starts the quiz and watches the voting live. Each player sees the
+  options in their own order and only sees the votes after answering.
+- A correct answer is worth 1000 points plus up to 500 bonus, proportional to
+  speed; a wrong answer is worth 0. Points are added to the scoreboard on
+  reveal.
+- The answer is revealed when time runs out, or earlier with "Pular pergunta"
+  (Skip question), which keeps the points of those who already answered. Then
+  the host moves on or ends the quiz.
+- "Jogar novamente" (Play again) goes back to the lobby, resetting scores and
+  answers, with the same players.
+- "Sair" (Leave) clears the session cookies; the player stays listed in the
+  ranking.
+- Reveal timers live in memory: restarting the backend loses them, and they are
+  rescheduled on the next read of the room state.
 
 ## API
 
-| Método | Rota                       | Descrição                                       |
-| ------ | -------------------------- | ----------------------------------------------- |
-| POST   | `/api/games`               | Cria sala `{nickname}` (define cookie de host). |
-| POST   | `/api/games/:code/join`    | Entra na sala `{nickname}`; devolve `playerId`. |
-| GET    | `/api/games/:code/me`      | Papel, `playerId` e apelido da sessão atual.    |
-| GET    | `/api/games/:code/state`   | Estado atual da partida.                        |
-| GET    | `/api/games/:code/events`  | Stream SSE (evento `state`) em tempo real.      |
-| POST   | `/api/games/:code/start`   | Inicia a primeira pergunta (host).              |
-| POST   | `/api/games/:code/answer`  | Registra a resposta `{choiceId}` (jogador).     |
-| POST   | `/api/games/:code/skip`    | Revela a pergunta antes do prazo (host).        |
-| POST   | `/api/games/:code/next`    | Avança após a revelação (host).                 |
-| POST   | `/api/games/:code/finish`  | Encerra o quiz antecipadamente (host).          |
-| POST   | `/api/games/:code/restart` | Volta ao lobby zerando o placar (host).         |
-| POST   | `/api/games/:code/leave`   | Apaga os cookies da sessão.                     |
-| GET    | `/health`                  | Health check (app + banco); 503 sem banco.      |
+| Method | Route                      | Description                                       |
+| ------ | -------------------------- | ------------------------------------------------- |
+| POST   | `/api/games`               | Creates a room `{nickname}` (sets host cookie).   |
+| POST   | `/api/games/:code/join`    | Joins the room `{nickname}`; returns `playerId`.  |
+| GET    | `/api/games/:code/me`      | Role, `playerId` and nickname of the session.     |
+| GET    | `/api/games/:code/state`   | Current game state.                               |
+| GET    | `/api/games/:code/events`  | Real-time SSE stream (`state` event).             |
+| POST   | `/api/games/:code/start`   | Starts the first question (host).                 |
+| POST   | `/api/games/:code/answer`  | Records the answer `{choiceId}` (player).         |
+| POST   | `/api/games/:code/skip`    | Reveals the question before the deadline (host).  |
+| POST   | `/api/games/:code/next`    | Moves on after the reveal (host).                 |
+| POST   | `/api/games/:code/finish`  | Ends the quiz early (host).                       |
+| POST   | `/api/games/:code/restart` | Back to the lobby, resetting the scores (host).   |
+| POST   | `/api/games/:code/leave`   | Clears the session cookies.                       |
+| GET    | `/health`                  | Health check (app + database); 503 without DB.    |
 
-O código da sala não diferencia maiúsculas de minúsculas. Erros vêm como
-`{"error": "mensagem"}`: `400` para regra de negócio (ex.: "O tempo acabou."),
-`401` sem sessão na sala (`me`, `state`, `events`; inclui sala inexistente),
-`403` quando a ação é de outro papel e `422` em `answer` sem `choiceId`.
+Room codes are case-insensitive. Errors come as `{"error": "message"}`: `400`
+for business rules (e.g. "O tempo acabou." — time's up), `401` with no session
+in the room (`me`, `state`, `events`; includes a nonexistent room), `403` when
+the action belongs to another role and `422` on `answer` without `choiceId`.

@@ -1,47 +1,48 @@
-# Testes de carga
+# Load Tests
 
-Scripts [k6](https://k6.io/) e um teste rápido em shell para a API. O alvo
-padrão é o backend local (`http://localhost:8080`); suba o Postgres e o Spring
-antes (veja o README da raiz).
+[k6](https://k6.io/) scripts and a quick shell test for the API. The default
+target is the local backend (`http://localhost:8080`); start Postgres and Spring
+first (see the root README).
 
-## Pré-requisitos
+## Prerequisites
 
 ```bash
 brew install k6
 ```
 
-## Como executar
+## Running
 
-A partir da raiz do repositório:
-
-```bash
-k6 run loadtest/basic.js       # rampa até 100 usuários virtuais, ~1min30
-k6 run loadtest/realistic.js   # mesmo fluxo, patamares mais longos, ~1min50
-k6 run loadtest/stress.js      # rampa até 500 usuários virtuais, ~5min
-./loadtest/quick-test.sh       # só curl: health, criar, entrar e concorrência
-```
-
-Para apontar para outro servidor:
+From the repository root:
 
 ```bash
-k6 run --env BASE_URL=http://outro-host:8080 loadtest/basic.js
-./loadtest/quick-test.sh http://outro-host:8080 50 10   # url, requisições, workers
+k6 run loadtest/basic.js       # ramps up to 100 virtual users, ~1min30
+k6 run loadtest/realistic.js   # same flow, longer plateaus, ~1min50
+k6 run loadtest/stress.js      # ramps up to 500 virtual users, ~5min
+./loadtest/quick-test.sh       # curl only: health, create, join and concurrency
 ```
 
-## Fluxo testado (k6)
+To target another server:
 
-Cada iteração de usuário virtual cria uma sala com um único jogador:
+```bash
+k6 run --env BASE_URL=http://other-host:8080 loadtest/basic.js
+./loadtest/quick-test.sh http://other-host:8080 50 10   # url, requests, workers
+```
 
-1. Criar sala (`POST /api/games`)
-2. Entrar na sala (`POST /api/games/{code}/join`)
-3. Iniciar a partida (`POST /api/games/{code}/start`)
-4. Consultar o estado (`GET /api/games/{code}/state`)
-5. Responder a primeira pergunta (`POST /api/games/{code}/answer`)
-6. Encerrar a partida (`POST /api/games/{code}/finish`)
+## Tested Flow (k6)
 
-Os três scripts usam o mesmo fluxo e só mudam a rampa de usuários e os limites
-(`p95 < 500ms` no básico e no realista, `p95 < 1s` no stress; erro `< 15%`). Eles
-não abrem conexões SSE, então não medem o custo dos streams em tempo real.
+Each virtual user iteration creates a room with a single player:
 
-Cada execução cria salas e jogadores no banco. Para limpar:
+1. Create a room (`POST /api/games`)
+2. Join the room (`POST /api/games/{code}/join`)
+3. Start the game (`POST /api/games/{code}/start`)
+4. Fetch the state (`GET /api/games/{code}/state`)
+5. Answer the first question (`POST /api/games/{code}/answer`)
+6. End the game (`POST /api/games/{code}/finish`)
+
+All three scripts use the same flow and only change the user ramp and the
+thresholds (`p95 < 500ms` for basic and realistic, `p95 < 1s` for stress; errors
+`< 15%`). They don't open SSE connections, so they don't measure the cost of the
+real-time streams.
+
+Each run creates rooms and players in the database. To clean up:
 `docker compose down -v && docker compose up -d`.
