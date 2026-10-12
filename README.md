@@ -5,6 +5,14 @@ a rewrite of the original Fresh Quiz (Deno/Fresh + Preact) with **Angular 22**
 on the front end and **Java 21 + Spring Boot 4** on the back end, keeping the
 game rules, the API, the SSE updates and PostgreSQL.
 
+## Screenshots
+
+![Home page: join a game with a room code and a nickname](docs/screenshots/home.jpg)
+
+| Host view: live voting                                          | Final podium and ranking                    |
+| --------------------------------------------------------------- | ------------------------------------------- |
+| ![Host view with live voting](docs/screenshots/live-voting.jpg) | ![Final podium](docs/screenshots/final.jpg) |
+
 ## Origin
 
 Port of [freshQuiz](https://github.com/ErickHTF/freshQuiz). Game rules, API
