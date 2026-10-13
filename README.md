@@ -7,6 +7,7 @@ code, and compete with friends through timed questions and a live leaderboard.
 [freshQuiz](https://github.com/ErickHTF/freshQuiz).
 
 [![CI](https://github.com/ErickHTF/angular-spring-quiz/actions/workflows/ci.yml/badge.svg)](https://github.com/ErickHTF/angular-spring-quiz/actions/workflows/ci.yml)
+![Angular](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4-6DB33F?logo=springboot&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white)
 
 [Run locally](#run-locally) · [Development guide](docs/development.md) ·
 [Architecture](docs/architecture.md) · [API reference](docs/api.md)
