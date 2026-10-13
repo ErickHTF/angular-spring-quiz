@@ -1,145 +1,167 @@
-# Fresh Quiz — Angular + Spring Boot
+# angular-spring-quiz
 
-A real-time multiplayer quiz about web fundamentals: create a room, share its
-code, and compete with friends through timed questions and a live leaderboard.
+**Fresh Quiz**: a Kahoot-style real-time quiz game about web fundamentals. It's
+a rewrite of the original Fresh Quiz (Deno/Fresh + Preact) with **Angular 22**
+on the front end and **Java 21 + Spring Boot 4** on the back end, keeping the
+game rules, the API, the SSE updates and PostgreSQL.
 
-**Status:** Playable learning project · Angular/Spring Boot rewrite of
-[freshQuiz](https://github.com/ErickHTF/freshQuiz).
+## Screenshots
 
-[![CI](https://github.com/ErickHTF/angular-spring-quiz/actions/workflows/ci.yml/badge.svg)](https://github.com/ErickHTF/angular-spring-quiz/actions/workflows/ci.yml)
-![Angular](https://img.shields.io/badge/Angular-22-DD0031?logo=angular&logoColor=white) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4-6DB33F?logo=springboot&logoColor=white) ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Database-4169E1?logo=postgresql&logoColor=white)
+![Home page: join a game with a room code and a nickname](docs/screenshots/home.jpg)
 
-[Run locally](#run-locally) · [Development guide](docs/development.md) ·
-[Architecture](docs/architecture.md) · [API reference](docs/api.md)
+| Host view: live voting                                          | Final podium and ranking                    |
+| --------------------------------------------------------------- | ------------------------------------------- |
+| ![Host view with live voting](docs/screenshots/live-voting.jpg) | ![Final podium](docs/screenshots/final.jpg) |
 
-![Fresh Quiz home page with room code and nickname fields](docs/screenshots/home.jpg)
+## Origin
 
-| Live voting — host view                                                                    | Final podium and ranking                                                   |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| ![Host screen showing voting progress during a question](docs/screenshots/live-voting.jpg) | ![Podium and leaderboard at the end of a quiz](docs/screenshots/final.jpg) |
+Port of [freshQuiz](https://github.com/ErickHTF/freshQuiz). Game rules, API
+routes (plus `GET /me`), schema and questions are the same; what changes is the
+stack and a few implementation decisions:
 
-_The game interface is in Brazilian Portuguese._
+- **Database**: in the original, `db/init/01-setup.sh` applies migrations and
+  seed when the container is created (or via `deno task db:migrate`/`db:seed`);
+  here **Flyway** applies `V1`–`V3` (schema and seed) when the backend starts.
+- **Data access**: still hand-written SQL, swapping the `postgres` client
+  (tagged templates) for Spring's `JdbcClient`, with Spring-managed
+  transactions (`@Transactional`/`TransactionTemplate`).
+- **Real time**: same SSE design (state computed per connection, 25 s
+  heartbeat), now with `SseEmitter`, Spring application events and
+  `TaskScheduler` instead of `setTimeout` for the reveal.
+- **Front end**: the `useGameState` hook (global reference-counted store cache,
+  Preact signals) became the `GameStateStore` service with Angular signals,
+  provided by the room page and closed in `ngOnDestroy`.
+- **Tests**: the original's integration tests use the local Postgres and are
+  skipped if it isn't running; here they spin up Postgres with
+  **Testcontainers** and also cover the HTTP layer (MockMvc). The front end has
+  Vitest tests.
+- The EC2 deploy (systemd + manual workflows) was not ported.
 
-## Overview
+## Requirements
 
-Fresh Quiz brings a host and players together in a browser-based game. The
-included quiz covers HTML, CSS, HTTP, JavaScript and APIs across 16 questions.
+- Java 21 (Maven comes through the `./mvnw` wrapper)
+- Node `^22.22.3`, `^24.15.0` or `>=26` (required by Angular 22) and npm
+- Docker (local Postgres and Testcontainers in the tests)
 
-- Join a room by code and nickname, with separate host and player views.
-- Answer timed questions with individually shuffled choices.
-- Follow live voting and automatic answer reveals through server-sent events.
-- Earn points for correct answers, with a bonus for speed.
-- Replay with the same group, resetting answers and scores.
+## Development
 
-## Stack
-
-| Layer        | Technologies                                       |
-| ------------ | -------------------------------------------------- |
-| Frontend     | Angular 22, TypeScript, Angular signals            |
-| Backend      | Java 21, Spring Boot 4, Spring JDBC                |
-| Database     | PostgreSQL, Flyway migrations                      |
-| Real time    | Server-sent events (SSE), HttpOnly session cookies |
-| Verification | JUnit, MockMvc, Testcontainers, Vitest, k6         |
-
-## Run locally
-
-Install **Java 21**, **Docker**, and **Node.js with npm**. Supported Node versions
-are `^22.22.3`, `^24.15.0`, or `>=26`. Maven is included through the wrapper.
-
-Clone the repository:
-
-```bash
-git clone https://github.com/ErickHTF/angular-spring-quiz.git
-cd angular-spring-quiz
-```
-
-Run each command in a separate terminal, starting from the repository root:
+In three terminals, from the repository root:
 
 ```bash
-# Terminal 1 — database on port 5433
-docker compose up -d
+docker compose up -d                          # Postgres on port 5433
+cd backend && ./mvnw spring-boot:run          # API at http://localhost:8080
+cd frontend && npm install && npm start       # app at http://localhost:4200
 ```
 
-```bash
-# Terminal 2 — backend on port 8080
-cd backend
-./mvnw spring-boot:run
-```
+Open `http://localhost:4200/` to join a game or `/host` to create a room.
+`ng serve` uses `frontend/proxy.conf.json` to forward `/api` and `/health` to
+Spring: the browser sees a single origin, so HttpOnly cookies and
+`EventSource` work without CORS.
 
-```bash
-# Terminal 3 — frontend on port 4200
-cd frontend
-npm ci
-npm start
-```
+The schema and the initial quiz (16 questions) are applied by **Flyway** when
+the backend starts (`backend/src/main/resources/db/migration`). To recreate the
+database from scratch (wipes the data):
+`docker compose down -v && docker compose up -d`.
 
-Open [localhost:4200/host](http://localhost:4200/host) to create a room. In another
-browser session, open [localhost:4200](http://localhost:4200/) to join
-using the room code. Flyway creates the schema and loads the quiz on startup.
+The original project's compose file also publishes port `5433`; stop one
+before starting the other.
 
-The original Fresh Quiz also uses database port `5433`; stop its database before
-starting this version. See the [development guide](docs/development.md) for
-configuration and a disposable database alternative.
+Without docker-compose, `cd backend && ./mvnw spring-boot:test-run` starts the
+API with a throwaway Postgres created by Testcontainers (data is lost when it
+stops).
 
-## Verification
+### Backend configuration
 
-With Docker running, execute these commands from the repository root in
-separate terminals:
+| Variable            | Default                                        |
+| ------------------- | ---------------------------------------------- |
+| `DATABASE_URL`      | `jdbc:postgresql://localhost:5433/fresh_quiz`  |
+| `DATABASE_USER`     | `fresh`                                        |
+| `DATABASE_PASSWORD` | `fresh`                                        |
+| `PORT`              | `8080`                                         |
 
-```bash
-# Backend unit and integration tests
-cd backend
-./mvnw verify
-```
+`DATABASE_URL` is a JDBC URL (`jdbc:postgresql://...`), not the `postgres://`
+format used in the original project.
 
-```bash
-# Frontend tests and production build
-cd frontend
-npm ci
-npm test -- --watch=false
-npm run build
-```
+## Tests
 
-The backend suite covers scoring, the game lifecycle, deadlines, authorization,
-cookies and errors. Frontend tests cover shuffling, votes and the SSE store.
-See the [load-testing guide](loadtest/README.md) for k6 scenarios.
+- `cd backend && ./mvnw test`: scoring (unit) and integration with
+  Testcontainers (game lifecycle, deadlines, timed reveal, "skip",
+  authorization, cookies and error format). Requires Docker running.
+- `cd frontend && npm test -- --watch=false`: Vitest (shuffling, votes and SSE
+  store).
+- Load: see [`loadtest/README.md`](loadtest/README.md).
 
-## Architecture
+## Structure
 
-```mermaid
-flowchart LR
-    Host[Host browser] -->|HTTP actions| API[Spring Boot API]
-    Player[Player browser] -->|HTTP actions| API
-    API -->|SSE state updates| Host
-    API -->|SSE state updates| Player
-    API -->|JDBC transactions| DB[(PostgreSQL)]
-```
+- `backend/src/main/java/com/freshquiz/game/`: domain. `GameService` (rules),
+  `GameRepository` (SQL with `JdbcClient`), `RevealScheduler` (timed reveal)
+  and `Scoring`.
+- `backend/.../events/`: `GameEventBroker` keeps the SSE connections per room
+  and sends each connection the state as seen by it (the host sees votes live).
+- `backend/.../web/`: REST controllers, session cookies and error handling.
+- `frontend/src/app/core/`: models, HTTP client, `GameStateStore` (SSE →
+  signals), shuffling and votes.
+- `frontend/src/app/pages/`: one page per route. Room pages provide the
+  `GameStateStore`, shared by the game and the ranking.
+- `frontend/src/app/game/` and `ui/`: game components and visual components.
 
-Angular signals hold the state received through SSE. Spring computes the state
-for each viewer, applies game rules, and persists changes in PostgreSQL.
-Events are published after transaction commit so clients receive committed state.
+## How SSE Works
 
-SSE connections and reveal timers live in memory. The current design supports
-one backend instance; after a restart, timers are rescheduled on the next room
-state read. The original project's EC2 deployment was not ported.
+1. `GET /api/games/:code/events` registers an `SseEmitter` in the
+   `GameEventBroker`, together with the session's viewer (host or player), and
+   immediately sends the current state.
+2. Every action that changes the room (`GameController` endpoints or the
+   `RevealScheduler` reveal) publishes a `GameChangedEvent` after the
+   transaction commits.
+3. The broker receives the event and, for each connection in that room,
+   recomputes the state for that viewer and sends a `state` event — that's why
+   the host sees votes live and players don't.
+4. In the browser, `GameStateStore` listens for `state` and updates the
+   signals; on reconnect, it fetches `/state` so no changes are missed.
 
-Read the [architecture guide](docs/architecture.md) for the source layout, SSE
-flow, game rules and implementation differences from the original.
+Connections live in memory (one map per room code) and sending is synchronous
+on the thread that published the event, so the fan-out works for a single
+backend instance; running several instances would require a shared channel
+(for example Postgres `LISTEN/NOTIFY`).
 
-## Documentation
+## Game Lifecycle
 
-| Guide                                | Contents                                                   |
-| ------------------------------------ | ---------------------------------------------------------- |
-| [Development](docs/development.md)   | Requirements, local setup, configuration and test commands |
-| [Architecture](docs/architecture.md) | Porting decisions, source layout, SSE and game lifecycle   |
-| [API reference](docs/api.md)         | Routes, sessions, request fields and error responses       |
-| [Load testing](loadtest/README.md)   | k6 scenarios and execution instructions                    |
+- The host creates the room at `/host` and shares the code. Players join from
+  the home page with a nickname, only while the room is in the lobby.
+- The host starts the quiz and watches the voting live. Each player sees the
+  options in their own order and only sees the votes after answering.
+- A correct answer is worth 1000 points plus up to 500 bonus, proportional to
+  speed; a wrong answer is worth 0. Points are added to the scoreboard on
+  reveal.
+- The answer is revealed when time runs out, or earlier with "Pular pergunta"
+  (Skip question), which keeps the points of those who already answered. Then
+  the host moves on or ends the quiz.
+- "Jogar novamente" (Play again) goes back to the lobby, resetting scores and
+  answers, with the same players.
+- "Sair" (Leave) clears the session cookies; the player stays listed in the
+  ranking.
+- Reveal timers live in memory: restarting the backend loses them, and they are
+  rescheduled on the next read of the room state.
 
-## Project context
+## API
 
-This repository explores the same game with Angular and Spring Boot while
-preserving the original Fresh/Preact version's rules, PostgreSQL schema and SSE
-approach. The [original implementation](https://github.com/ErickHTF/freshQuiz)
-provides a comparison of the two stacks.
+| Method | Route                      | Description                                       |
+| ------ | -------------------------- | ------------------------------------------------- |
+| POST   | `/api/games`               | Creates a room `{nickname}` (sets host cookie).   |
+| POST   | `/api/games/:code/join`    | Joins the room `{nickname}`; returns `playerId`.  |
+| GET    | `/api/games/:code/me`      | Role, `playerId` and nickname of the session.     |
+| GET    | `/api/games/:code/state`   | Current game state.                               |
+| GET    | `/api/games/:code/events`  | Real-time SSE stream (`state` event).             |
+| POST   | `/api/games/:code/start`   | Starts the first question (host).                 |
+| POST   | `/api/games/:code/answer`  | Records the answer `{choiceId}` (player).         |
+| POST   | `/api/games/:code/skip`    | Reveals the question before the deadline (host).  |
+| POST   | `/api/games/:code/next`    | Moves on after the reveal (host).                 |
+| POST   | `/api/games/:code/finish`  | Ends the quiz early (host).                       |
+| POST   | `/api/games/:code/restart` | Back to the lobby, resetting the scores (host).   |
+| POST   | `/api/games/:code/leave`   | Clears the session cookies.                       |
+| GET    | `/health`                  | Health check (app + database); 503 without DB.    |
 
-No license is currently included in this repository.
+Room codes are case-insensitive. Errors come as `{"error": "message"}`: `400`
+for business rules (e.g. "O tempo acabou." — time's up), `401` with no session
+in the room (`me`, `state`, `events`; includes a nonexistent room), `403` when
+the action belongs to another role and `422` on `answer` without `choiceId`.
