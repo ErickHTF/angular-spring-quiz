@@ -1,0 +1,75 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+
+class Quiz {
+  -id : String
+  -title : String
+  -createdAt : Instant
+  +updateTitle(title: String) : void
+  +addQuestion(prompt: String, durationSeconds: int) : Question
+  +removeQuestion(questionId: String) : void
+}
+
+class Question {
+  -id : String
+  -position : int
+  -prompt : String
+  -durationSeconds : int
+  +update(prompt: String, durationSeconds: int) : void
+  +addChoice(label: String, isCorrect: boolean) : Choice
+  +removeChoice(choiceId: String) : void
+  +setCorrectChoice(choiceId: String) : void
+}
+
+class Choice {
+  -id : String
+  -position : int
+  -label : String
+  -isCorrect : boolean
+  +update(label: String, isCorrect: boolean) : void
+}
+
+class Game {
+  -id : String
+  -code : String
+  -hostNickname : String
+  -status : String
+  -currentQuestionPosition : int
+  -questionStartedAt : Instant
+  -questionDeadlineAt : Instant
+  +start() : void
+  +nextQuestion() : void
+  +skipQuestion() : void
+  +restart() : void
+}
+
+class Player {
+  -id : String
+  -nickname : String
+  -playerToken : String
+  -createdAt : Instant
+}
+
+class GamePlayer {
+  -score : int
+  -joinedAt : Instant
+  +addScore(points: int) : void
+  +resetScore() : void
+}
+
+class Answer {
+  -isCorrect : boolean
+  -points : int
+  -answeredAt : Instant
+}
+
+Quiz "1" *-- "0..*" Question : compõe
+Question "1" *-- "2..*" Choice : compõe
+Game "0..*" --> "1" Quiz : utiliza
+Game "1" *-- "0..*" GamePlayer
+Player "1" *-- "0..*" GamePlayer
+GamePlayer "1" *-- "0..*" Answer
+Answer "0..*" --> "1" Question
+Answer "0..*" --> "1" Choice
+@enduml
