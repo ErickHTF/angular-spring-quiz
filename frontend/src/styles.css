@@ -1526,3 +1526,15 @@ textarea.field {
     flex-basis: calc(100% - 2rem);
   }
 }
+
+
+.quiz-builder {
+  margin-top: 2.5rem;
+}
+
+.host-quiz-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  align-items: flex-start;
+}

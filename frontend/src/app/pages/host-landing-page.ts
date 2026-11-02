@@ -48,7 +48,7 @@ import { Brand } from '../ui/brand';
                 </select>
               </label>
             }
-            <div class="flex items-center justify-between gap-2">
+            <div class="host-quiz-links">
               <a class="home-link" routerLink="/quizzes/new">Criar meu próprio quiz</a>
               @if (selectedQuiz()?.canEdit) {
                 <a class="home-link" [routerLink]="['/quizzes', selectedQuizId(), 'edit']">Editar este quiz</a>
