@@ -1,4 +1,4 @@
-package com.freshquiz.web;
+package com.freshquiz.controller;
 
 import java.util.Locale;
 import java.util.Map;
@@ -76,7 +76,6 @@ public class GameController {
 				"playerId", session.playerId()));
 	}
 
-	/** O Angular não lê cookies HttpOnly: este endpoint diz quem é o usuário na sala. */
 	@GetMapping("/{code}/me")
 	public ResponseEntity<?> me(@PathVariable String code, HttpServletRequest request) {
 		code = normalize(code);

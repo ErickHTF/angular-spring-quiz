@@ -1,4 +1,4 @@
-package com.freshquiz.web;
+package com.freshquiz.controller;
 
 import java.util.List;
 import java.util.Map;

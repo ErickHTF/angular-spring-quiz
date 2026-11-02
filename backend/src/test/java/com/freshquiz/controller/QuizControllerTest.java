@@ -1,4 +1,4 @@
-package com.freshquiz.web;
+package com.freshquiz.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;

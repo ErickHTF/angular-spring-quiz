@@ -1,4 +1,4 @@
-package com.freshquiz.web;
+package com.freshquiz.controller;
 
 import com.freshquiz.game.GameException;
 import org.slf4j.Logger;

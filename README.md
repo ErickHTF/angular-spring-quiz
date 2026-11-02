@@ -66,7 +66,7 @@ um Postgres descartável criado pelo Testcontainers (os dados somem ao parar).
   personalizadas com token assinado via SHA-256 e cookie HttpOnly.
 - `backend/.../events/`: `GameEventBroker` mantém as conexões SSE por sala e
   envia a cada conexão o estado visto por ela (o host vê os votos ao vivo).
-- `backend/.../web/`: controllers REST, cookies de sessão e tratamento de erros.
+- `backend/.../controller/`: controllers REST, cookies de sessão e tratamento de erros.
 - `frontend/src/app/core/`: modelos, cliente HTTP, `GameStateStore` (SSE →
   signals), rascunho de quizzes, embaralhamento e votos.
 - `frontend/src/app/pages/`: uma página por rota (Home, Host, Jogador, Quiz Builder).
