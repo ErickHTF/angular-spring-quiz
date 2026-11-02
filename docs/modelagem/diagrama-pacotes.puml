@@ -1,0 +1,82 @@
+@startuml
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+package "pages" {
+  class HostGamePage <<Component>> {
+    +roomCode : Signal<string>
+    +ready : Signal<boolean>
+    +ngOnInit() : Promise<void>
+  }
+}
+
+package "core" {
+  class GameApi <<Service>> {
+    +createGame(nickname: string) : Promise
+    +join(code: string, nickname: string) : Promise
+    +state(code: string) : Promise<GameState>
+    +hostAction(code: string, action: HostAction) : Promise
+    +answer(code: string, choiceId: string) : Promise
+  }
+
+  class GameStateStore <<Service>> {
+    +connect(code: string) : void
+    +disconnect() : void
+  }
+}
+
+package "web" {
+  class GameController <<RestController>> {
+    +create(body: NicknameBody) : ResponseEntity
+    +join(code: String, body: NicknameBody) : ResponseEntity
+    +state(code: String) : ResponseEntity
+    +start(code: String) : ResponseEntity
+    +next(code: String) : ResponseEntity
+    +skip(code: String) : ResponseEntity
+    +answer(code: String, body: AnswerBody) : ResponseEntity
+  }
+}
+
+package "game" {
+  class GameService <<Service>> {
+    +createGame(nickname: String) : GameSession
+    +joinGame(code: String, nickname: String) : PlayerSession
+    +startGame(code: String) : void
+    +advanceGame(code: String) : void
+    +skipQuestion(code: String) : void
+    +submitAnswer(code: String, token: String, choiceId: String) : void
+  }
+
+  class GameRepository <<Repository>> {
+    +getGame(code: String) : Optional<GameRow>
+    +getQuestion(quizId: String, position: int) : Optional<QuestionRow>
+    +getQuestionChoices(questionId: String) : List<ChoiceRow>
+    +listPlayers(game: GameRow) : List<PlayerSummary>
+  }
+}
+
+package "model" {
+  class Game <<Entity>> {
+    -id : String
+    -code : String
+    -hostNickname : String
+    -status : String
+    -currentQuestionPosition : int
+    -questionStartedAt : Instant
+    -questionDeadlineAt : Instant
+    +start() : void
+    +nextQuestion() : void
+    +skipQuestion() : void
+    +restart() : void
+  }
+}
+
+HostGamePage ..> GameStateStore : injeta
+HostGamePage ..> GameApi : aciona
+GameApi ..> GameController : HTTP REST
+GameController ..> GameService : invoca
+GameService ..> Game : manipula
+GameService ..> GameRepository : consulta e persiste
+GameRepository ..> Game : mapeia
+@enduml
