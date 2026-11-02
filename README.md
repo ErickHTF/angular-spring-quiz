@@ -62,17 +62,22 @@ um Postgres descartável criado pelo Testcontainers (os dados somem ao parar).
 - `backend/src/main/java/com/freshquiz/game/`: domínio. `GameService` (regras),
   `GameRepository` (SQL com `JdbcClient`), `RevealScheduler` (revelação por
   timer) e `Scoring`.
+- `backend/src/main/java/com/freshquiz/quiz/`: CRUD de quizzes e perguntas
+  personalizadas com token assinado via SHA-256 e cookie HttpOnly.
 - `backend/.../events/`: `GameEventBroker` mantém as conexões SSE por sala e
   envia a cada conexão o estado visto por ela (o host vê os votos ao vivo).
 - `backend/.../web/`: controllers REST, cookies de sessão e tratamento de erros.
 - `frontend/src/app/core/`: modelos, cliente HTTP, `GameStateStore` (SSE →
-  signals), embaralhamento e votos.
-- `frontend/src/app/pages/`: uma página por rota. As páginas de sala fornecem o
-  `GameStateStore`, compartilhado pelo jogo e pelo ranking.
+  signals), rascunho de quizzes, embaralhamento e votos.
+- `frontend/src/app/pages/`: uma página por rota (Home, Host, Jogador, Quiz Builder).
 - `frontend/src/app/game/` e `ui/`: componentes do jogo e componentes visuais.
 
 ## Ciclo da partida
 
+- Em `/quizzes/new` o host monta um quiz próprio (título e perguntas com 2 a 4 alternativas, uma correta,
+  e tempo de 5 a 120 s). Ao criar o quiz, um token de dono é gerado em cookie HttpOnly (`fresh_quiz_<id>`).
+- Em `/quizzes/:id/edit`, o host que possui o cookie pode atualizar as perguntas ou excluir o quiz.
+- Ao criar a sala em `/host` ele escolhe o quiz personalizado ou o padrão da plataforma.
 - O host cria a sala em `/host` e compartilha o código. Jogadores entram pela
   página inicial com um apelido, só enquanto a sala está no lobby.
 - O host inicia o quiz e acompanha a votação ao vivo. Cada jogador vê as
@@ -91,7 +96,12 @@ um Postgres descartável criado pelo Testcontainers (os dados somem ao parar).
 
 | Método | Rota                       | Descrição                                       |
 | ------ | -------------------------- | ----------------------------------------------- |
-| POST   | `/api/games`               | Cria sala `{nickname}` (define cookie de host). |
+| GET    | `/api/quizzes`             | Lista os quizzes disponíveis e permissões.      |
+| POST   | `/api/quizzes`             | Cria quiz `{title, questions}`; emite cookie.   |
+| GET    | `/api/quizzes/:id`         | Retorna detalhes do quiz e se pode editar.      |
+| PUT    | `/api/quizzes/:id`         | Atualiza perguntas do quiz (requer token).      |
+| DELETE | `/api/quizzes/:id`         | Exclui quiz sem partidas ativas (requer token). |
+| POST   | `/api/games`               | Cria sala `{nickname, quizId?}` (cookie host).  |
 | POST   | `/api/games/:code/join`    | Entra na sala `{nickname}`; devolve `playerId`. |
 | GET    | `/api/games/:code/me`      | Papel, `playerId` e apelido da sessão atual.    |
 | GET    | `/api/games/:code/state`   | Estado atual da partida.                        |
