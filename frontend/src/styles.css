@@ -223,6 +223,11 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  /* O degradê só pinta dentro da caixa; com line-height curto as descendentes
+     (j, g) ficavam cortadas. O padding amplia a área e a margem negativa
+     mantém o layout. */
+  padding: 0 .1em .2em;
+  margin: 0 -.1em -.2em;
 }
 
 /* ---------- Hero ---------- */
@@ -232,8 +237,7 @@ body {
   grid-template-columns: 1.1fr .9fr;
   align-items: center;
   gap: 5rem;
-  min-height: calc(100vh - 7rem);
-  min-height: calc(100dvh - 7rem);
+  padding: 4rem 0 3.5rem;
 }
 
 .hero-copy h1 {
@@ -1537,4 +1541,111 @@ textarea.field {
   flex-direction: column;
   gap: 0.625rem;
   align-items: flex-start;
+}
+
+/* ---------- Home: menu principal ---------- */
+
+.home-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.home-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.home-action {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.home-action > * + * {
+  margin-top: .5rem;
+}
+
+.home-action-host {
+  --island-accent: var(--purple);
+}
+
+.home-action-quiz {
+  --island-accent: var(--yellow);
+}
+
+.home-action-new {
+  --island-accent: var(--green);
+}
+
+/* ---------- Manter quizzes ---------- */
+
+.quiz-list-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  margin: 3rem 0 2rem;
+}
+
+.quiz-list-head > div > * + * {
+  margin-top: .75rem;
+}
+
+.quiz-list-head .button {
+  white-space: nowrap;
+}
+
+.quiz-section-title {
+  margin: 2rem 0 1rem;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.quiz-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quiz-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.quiz-card-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.15rem;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.quiz-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.quiz-card-actions .button {
+  padding: .5rem .9rem;
+  font-size: .8rem;
+  text-align: center;
+}
+
+@media (max-width: 800px) {
+  .home-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .quiz-list-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }

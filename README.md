@@ -21,8 +21,8 @@ cd backend && ./mvnw spring-boot:run          # API em http://localhost:8080
 cd frontend && npm install && npm start       # app em http://localhost:4200
 ```
 
-Abra `http://localhost:4200/` para entrar em uma partida ou `/host` para criar
-uma sala. O `ng serve` usa `frontend/proxy.conf.json` para encaminhar `/api` e
+Abra `http://localhost:4200/` (tela principal) para entrar em uma partida,
+`/host` para criar uma sala ou `/quizzes` para gerenciar os quizzes. O `ng serve` usa `frontend/proxy.conf.json` para encaminhar `/api` e
 `/health` ao Spring: o navegador enxerga uma única origem, então os cookies
 HttpOnly e o `EventSource` funcionam sem CORS.
 
@@ -53,27 +53,35 @@ um Postgres descartável criado pelo Testcontainers (os dados somem ao parar).
 - `cd backend && ./mvnw test`: pontuação (unidade) e integração com
   Testcontainers (ciclo da partida, prazos, revelação por timer, "pular",
   autorização, cookies e formato dos erros). Precisa do Docker rodando.
-- `cd frontend && npm test -- --watch=false`: Vitest (embaralhamento, votos e
-  store SSE).
+- `cd frontend && npm test -- --watch=false`: Vitest (embaralhamento, votos,
+  store SSE, cliente HTTP e rascunho/validação do quiz).
 - Carga: veja [`loadtest/README.md`](loadtest/README.md).
 
 ## Estrutura
 
+- `docs/modelagem/`: modelo Astah (`fresh.asta`), DER e diagramas PlantUML de
+  Casos de Uso, Classes de Domínio e Pacotes.
+- `docs/api/`: documentação e contratos dos endpoints REST e streaming SSE.
+- `docs/web/`: arquitetura do front-end Angular, signals store e fluxo das telas.
 - `backend/src/main/java/com/freshquiz/game/`: domínio. `GameService` (regras),
   `GameRepository` (SQL com `JdbcClient`), `RevealScheduler` (revelação por
   timer) e `Scoring`.
 - `backend/src/main/java/com/freshquiz/quiz/`: CRUD de quizzes e perguntas
-  personalizadas com token assinado via SHA-256 e cookie HttpOnly.
+  personalizadas; o dono recebe um token em cookie HttpOnly e o banco guarda só
+  o hash SHA-256.
 - `backend/.../events/`: `GameEventBroker` mantém as conexões SSE por sala e
   envia a cada conexão o estado visto por ela (o host vê os votos ao vivo).
 - `backend/.../controller/`: controllers REST, cookies de sessão e tratamento de erros.
 - `frontend/src/app/core/`: modelos, cliente HTTP, `GameStateStore` (SSE →
   signals), rascunho de quizzes, embaralhamento e votos.
-- `frontend/src/app/pages/`: uma página por rota (Home, Host, Jogador, Quiz Builder).
+- `frontend/src/app/pages/`: uma página por rota (Home, Host, Jogador, Meus
+  quizzes e criação/edição de quiz).
 - `frontend/src/app/game/` e `ui/`: componentes do jogo e componentes visuais.
 
 ## Ciclo da partida
 
+- Em `/quizzes` o host vê todos os quizzes: os seus (jogar, editar, excluir) e
+  os demais (jogar, ver perguntas).
 - Em `/quizzes/new` o host monta um quiz próprio (título e perguntas com 2 a 4 alternativas, uma correta,
   e tempo de 5 a 120 s). Ao criar o quiz, um token de dono é gerado em cookie HttpOnly (`fresh_quiz_<id>`).
 - Em `/quizzes/:id/edit`, o host que possui o cookie pode atualizar as perguntas ou excluir o quiz.

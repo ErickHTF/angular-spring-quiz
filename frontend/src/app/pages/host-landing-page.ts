@@ -50,6 +50,7 @@ import { Brand } from '../ui/brand';
             }
             <div class="host-quiz-links">
               <a class="home-link" routerLink="/quizzes/new">Criar meu próprio quiz</a>
+              <a class="home-link" routerLink="/quizzes">Gerenciar quizzes</a>
               @if (selectedQuiz()?.canEdit) {
                 <a class="home-link" [routerLink]="['/quizzes', selectedQuizId(), 'edit']">Editar este quiz</a>
               }

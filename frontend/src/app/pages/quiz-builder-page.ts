@@ -28,17 +28,17 @@ import { Brand } from '../ui/brand';
       <div class="shell shell-small">
         <header class="home-header">
           <app-brand />
-          <a class="home-link" routerLink="/host">Voltar</a>
+          <a class="home-link" routerLink="/quizzes">Voltar aos quizzes</a>
         </header>
         <form class="island island-quiz quiz-builder" (ngSubmit)="save()">
           <div>
-            <p class="eyebrow">{{ isEditing() ? 'Editar quiz' : 'Quiz personalizado' }}</p>
+            <p class="eyebrow">{{ !isEditing() ? 'Quiz personalizado' : canEdit() ? 'Editar quiz' : 'Visualizar quiz' }}</p>
             <h1 class="island-title island-title-lg">
-              {{ isEditing() ? 'Edite o seu quiz.' : 'Monte as suas perguntas.' }}
+              {{ !isEditing() ? 'Monte as suas perguntas.' : canEdit() ? 'Edite o seu quiz.' : 'Perguntas do quiz.' }}
             </h1>
             <p class="island-copy island-copy-lg">
               Cada pergunta tem de {{ limits.choicesMin }} a {{ limits.choicesMax }} alternativas e uma única resposta
-              correta. Depois de salvar, escolha o quiz ao criar a sala.
+              correta. Depois de salvar, ele aparece em Meus quizzes e na criação da sala.
             </p>
           </div>
 
@@ -222,7 +222,7 @@ export class QuizBuilderPage implements OnInit {
       const details = await this.api.getQuiz(quizId);
       this.canEdit.set(details.canEdit);
       if (!details.canEdit) {
-        this.error.set('Você não tem permissão para editar este quiz.');
+        this.error.set('Somente leitura: apenas quem criou este quiz pode alterá-lo.');
       }
       this.draft.set(fromQuizDetails(details));
     } catch (cause) {
@@ -289,11 +289,10 @@ export class QuizBuilderPage implements OnInit {
       const quizId = this.id();
       if (quizId) {
         await this.api.updateQuiz(quizId, toQuizPayload(this.draft()));
-        await this.router.navigate(['/host'], { queryParams: { quiz: quizId } });
       } else {
-        const quiz = await this.api.createQuiz(toQuizPayload(this.draft()));
-        await this.router.navigate(['/host'], { queryParams: { quiz: quiz.id } });
+        await this.api.createQuiz(toQuizPayload(this.draft()));
       }
+      await this.router.navigate(['/quizzes']);
     } catch (cause) {
       this.error.set(errorMessage(cause, 'Não foi possível salvar o quiz.'));
       this.saving.set(false);
@@ -308,7 +307,7 @@ export class QuizBuilderPage implements OnInit {
     this.error.set('');
     try {
       await this.api.deleteQuiz(quizId);
-      await this.router.navigate(['/host']);
+      await this.router.navigate(['/quizzes']);
     } catch (cause) {
       this.error.set(errorMessage(cause, 'Não foi possível excluir o quiz.'));
       this.deleting.set(false);
