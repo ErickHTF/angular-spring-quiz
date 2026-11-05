@@ -1,12 +1,14 @@
-import { Component } from '@angular/core';
+import { Component, input } from '@angular/core';
 
 @Component({
   selector: 'app-loading-state',
   template: `
     <div class="empty-state">
       <span class="loader"></span>
-      <p>Carregando sala...</p>
+      <p>{{ message() }}</p>
     </div>
   `,
 })
-export class LoadingState {}
+export class LoadingState {
+  readonly message = input('Carregando sala...');
+}

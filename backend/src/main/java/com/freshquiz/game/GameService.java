@@ -19,6 +19,7 @@ import com.freshquiz.game.model.GameStatus;
 import com.freshquiz.game.model.PlayerSession;
 import com.freshquiz.game.model.Role;
 import com.freshquiz.game.model.Viewer;
+import com.freshquiz.quiz.QuizRepository;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -28,18 +29,24 @@ import org.springframework.transaction.annotation.Transactional;
 public class GameService {
 
 	private final GameRepository repository;
+	private final QuizRepository quizzes;
 	private final RevealScheduler reveals;
 	private final JdbcClient jdbc;
 
-	public GameService(GameRepository repository, RevealScheduler reveals, JdbcClient jdbc) {
+	public GameService(GameRepository repository, QuizRepository quizzes, RevealScheduler reveals,
+			JdbcClient jdbc) {
 		this.repository = repository;
+		this.quizzes = quizzes;
 		this.reveals = reveals;
 		this.jdbc = jdbc;
 	}
 
 	public GameSession createGame(String nickname) {
-		String quizId = repository.firstQuizId()
-				.orElseThrow(() -> new GameException("Nenhum quiz disponível."));
+		return createGame(nickname, null);
+	}
+
+	public GameSession createGame(String nickname, String requestedQuizId) {
+		String quizId = resolveQuizId(requestedQuizId);
 		String cleanNickname = normalizeNickname(nickname);
 
 		for (int attempt = 0; attempt < 5; attempt++) {
@@ -63,6 +70,16 @@ public class GameService {
 			}
 		}
 		throw new GameException("Não foi possível gerar o código da sala.");
+	}
+
+	private String resolveQuizId(String requestedQuizId) {
+		if (requestedQuizId == null || requestedQuizId.isBlank()) {
+			return repository.firstQuizId()
+					.orElseThrow(() -> new GameException("Nenhum quiz disponível."));
+		}
+		String quizId = requestedQuizId.strip();
+		if (!quizzes.exists(quizId)) throw new GameException("Quiz não encontrado.");
+		return quizId;
 	}
 
 	private static String normalizeNickname(String nickname) {

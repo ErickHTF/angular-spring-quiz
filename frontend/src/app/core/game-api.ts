@@ -1,7 +1,8 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, firstValueFrom } from 'rxjs';
-import type { GameState, Me } from './models';
+import type { GameState, Me, QuizDetails, QuizSummary } from './models';
+import type { QuizPayload } from './quiz-draft';
 
 export type HostAction = 'start' | 'next' | 'skip' | 'finish' | 'restart';
 
@@ -9,8 +10,28 @@ export type HostAction = 'start' | 'next' | 'skip' | 'finish' | 'restart';
 export class GameApi {
   private readonly http = inject(HttpClient);
 
-  createGame(nickname: string): Promise<{ code: string }> {
-    return this.call(this.http.post<{ code: string }>('/api/games', { nickname }));
+  createGame(nickname: string, quizId?: string): Promise<{ code: string }> {
+    return this.call(this.http.post<{ code: string }>('/api/games', { nickname, quizId }));
+  }
+
+  listQuizzes(): Promise<QuizSummary[]> {
+    return this.call(this.http.get<QuizSummary[]>('/api/quizzes'));
+  }
+
+  getQuiz(id: string): Promise<QuizDetails> {
+    return this.call(this.http.get<QuizDetails>(`/api/quizzes/${id}`));
+  }
+
+  createQuiz(quiz: QuizPayload): Promise<QuizSummary> {
+    return this.call(this.http.post<QuizSummary>('/api/quizzes', quiz));
+  }
+
+  updateQuiz(id: string, quiz: QuizPayload): Promise<QuizSummary> {
+    return this.call(this.http.put<QuizSummary>(`/api/quizzes/${id}`, quiz));
+  }
+
+  deleteQuiz(id: string): Promise<unknown> {
+    return this.call(this.http.delete(`/api/quizzes/${id}`));
   }
 
   join(code: string, nickname: string): Promise<{ code: string; nickname: string; playerId: string }> {
@@ -40,7 +61,6 @@ export class GameApi {
     return this.call(this.http.post(`/api/games/${code}/leave`, null));
   }
 
-  /** Converte erros HTTP na mensagem `{ error }` enviada pela API. */
   private async call<T>(request: Observable<T>): Promise<T> {
     try {
       return await firstValueFrom(request);

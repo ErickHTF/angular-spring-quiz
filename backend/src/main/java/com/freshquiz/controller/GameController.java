@@ -1,4 +1,4 @@
-package com.freshquiz.web;
+package com.freshquiz.controller;
 
 import java.util.Locale;
 import java.util.Map;
@@ -32,6 +32,9 @@ public class GameController {
 	public record NicknameBody(String nickname) {
 	}
 
+	public record CreateGameBody(String nickname, String quizId) {
+	}
+
 	public record AnswerBody(String choiceId) {
 	}
 
@@ -54,8 +57,8 @@ public class GameController {
 	}
 
 	@PostMapping
-	public ResponseEntity<Map<String, String>> create(@RequestBody NicknameBody body) {
-		GameSession session = games.createGame(body.nickname());
+	public ResponseEntity<Map<String, String>> create(@RequestBody CreateGameBody body) {
+		GameSession session = games.createGame(body.nickname(), body.quizId());
 		HttpHeaders headers = new HttpHeaders();
 		SessionCookies.set(headers, SessionCookies.hostName(session.code()), session.hostToken());
 		return ResponseEntity.ok().headers(headers).body(Map.of("code", session.code()));
@@ -73,7 +76,6 @@ public class GameController {
 				"playerId", session.playerId()));
 	}
 
-	/** O Angular não lê cookies HttpOnly: este endpoint diz quem é o usuário na sala. */
 	@GetMapping("/{code}/me")
 	public ResponseEntity<?> me(@PathVariable String code, HttpServletRequest request) {
 		code = normalize(code);

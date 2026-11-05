@@ -34,6 +34,31 @@ export interface GameState {
   players: PlayerSummary[];
 }
 
+export interface QuizSummary {
+  id: string;
+  title: string;
+  questionCount: number;
+  canEdit?: boolean;
+}
+
+export interface ChoiceDraftPayload {
+  label: string;
+  isCorrect: boolean;
+}
+
+export interface QuestionDraftPayload {
+  prompt: string;
+  durationSeconds: number;
+  choices: ChoiceDraftPayload[];
+}
+
+export interface QuizDetails {
+  id: string;
+  title: string;
+  questions: QuestionDraftPayload[];
+  canEdit: boolean;
+}
+
 export interface Me {
   role: 'host' | 'player';
   playerId: string | null;

@@ -1,4 +1,4 @@
-package com.freshquiz.web;
+package com.freshquiz.controller;
 
 import com.freshquiz.game.GameService;
 import com.freshquiz.game.model.Role;
@@ -15,7 +15,6 @@ public class Authorizer {
 		this.games = games;
 	}
 
-	/** Retorna quem está fazendo a requisição na sala, ou {@code null} se não tiver sessão. */
 	public Viewer authorize(HttpServletRequest request, String code) {
 		String hostToken = SessionCookies.get(request, SessionCookies.hostName(code));
 		String playerToken = SessionCookies.get(request, SessionCookies.playerName(code));
