@@ -59,6 +59,9 @@ um Postgres descartável criado pelo Testcontainers (os dados somem ao parar).
 
 ## Estrutura
 
+- [`docs/modelagem/`](docs/modelagem/): modelo Astah (`fresh.asta`), DER e diagramas PlantUML de Casos de Uso e Classes de Domínio.
+- [`docs/api/`](docs/api/): documentação e contratos dos endpoints REST e streaming SSE.
+- [`docs/web/`](docs/web/): arquitetura do front-end Angular, signals store e fluxo das telas.
 - `backend/src/main/java/com/freshquiz/game/`: domínio. `GameService` (regras),
   `GameRepository` (SQL com `JdbcClient`), `RevealScheduler` (revelação por
   timer) e `Scoring`.
