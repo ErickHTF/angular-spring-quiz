@@ -41,12 +41,12 @@ export class PlayerGamePage implements OnInit {
     this.roomCode.set(code);
     this.title.setTitle(`Jogar ${code} | Fresh Quiz`);
     // O cookie da sessão é HttpOnly: quem é o jogador vem do servidor.
-    const me = await this.api.me(code).catch(() => null);
+    const me = await this.api.me(code, 'player').catch(() => null);
     if (me?.role !== 'player' || !me.playerId) {
       await this.router.navigateByUrl('/');
       return;
     }
-    this.store.connect(code);
+    this.store.connect(code, 'player');
     this.playerId.set(me.playerId);
   }
 }

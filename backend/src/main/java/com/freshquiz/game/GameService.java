@@ -19,7 +19,13 @@ import com.freshquiz.game.model.GameStatus;
 import com.freshquiz.game.model.PlayerSession;
 import com.freshquiz.game.model.Role;
 import com.freshquiz.game.model.Viewer;
+import com.freshquiz.model.Game;
+import com.freshquiz.model.GamePlayer;
+import com.freshquiz.model.Player;
+import com.freshquiz.model.Quiz;
+import com.freshquiz.quiz.QuizJpaRepository;
 import com.freshquiz.quiz.QuizRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -32,13 +38,22 @@ public class GameService {
 	private final QuizRepository quizzes;
 	private final RevealScheduler reveals;
 	private final JdbcClient jdbc;
+	private final GameJpaRepository gameJpaRepository;
+	private final PlayerJpaRepository playerJpaRepository;
+	private final GamePlayerJpaRepository gamePlayerJpaRepository;
+	private final QuizJpaRepository quizJpaRepository;
 
 	public GameService(GameRepository repository, QuizRepository quizzes, RevealScheduler reveals,
-			JdbcClient jdbc) {
+			JdbcClient jdbc, GameJpaRepository gameJpaRepository, PlayerJpaRepository playerJpaRepository,
+			GamePlayerJpaRepository gamePlayerJpaRepository, QuizJpaRepository quizJpaRepository) {
 		this.repository = repository;
 		this.quizzes = quizzes;
 		this.reveals = reveals;
 		this.jdbc = jdbc;
+		this.gameJpaRepository = gameJpaRepository;
+		this.playerJpaRepository = playerJpaRepository;
+		this.gamePlayerJpaRepository = gamePlayerJpaRepository;
+		this.quizJpaRepository = quizJpaRepository;
 	}
 
 	public GameSession createGame(String nickname) {
@@ -53,19 +68,13 @@ public class GameService {
 			String code = GameRepository.createCode();
 			String hostToken = GameRepository.createToken();
 			try {
-				jdbc.sql("""
-						INSERT INTO games (id, quiz_id, code, host_token, host_nickname, status)
-						VALUES (:id, :quizId, :code, :hostToken, :hostNickname, 'lobby')
-						""")
-						.param("id", GameRepository.createToken())
-						.param("quizId", quizId)
-						.param("code", code)
-						.param("hostToken", hostToken)
-						.param("hostNickname", cleanNickname)
-						.update();
+				Quiz quiz = quizJpaRepository.findById(quizId)
+						.orElseThrow(() -> new GameException("Quiz não encontrado."));
+				Game game = new Game(GameRepository.createToken(), quiz, code, hostToken, cleanNickname);
+				gameJpaRepository.save(game);
 				return new GameSession(code, hostToken);
 			}
-			catch (DuplicateKeyException collision) {
+			catch (DataIntegrityViolationException collision) {
 				// Código já usado por outra sala: tenta outro.
 			}
 		}
@@ -97,26 +106,43 @@ public class GameService {
 
 	@Transactional
 	public PlayerSession joinGame(String code, String nickname) {
-		GameRow game = requireGame(code);
-		if (game.status() != GameStatus.LOBBY) throw new GameException("A partida já começou.");
+		Game game = gameJpaRepository.findByCode(code)
+				.orElseThrow(() -> new GameException("Sala não encontrada."));
 		String cleanNickname = normalizeNickname(nickname);
+
+		// Se o jogador com o mesmo apelido já estiver na sala, reutiliza a sessão dele
+		Optional<GamePlayer> existing = gamePlayerJpaRepository
+				.findByGameIdAndPlayerNicknameIgnoreCase(game.getId(), cleanNickname);
+		if (existing.isPresent()) {
+			Player existingPlayer = existing.get().getPlayer();
+			String newToken = GameRepository.createToken();
+			existingPlayer.setPlayerToken(newToken);
+			playerJpaRepository.save(existingPlayer);
+			return new PlayerSession(game.getCode(), existingPlayer.getId(), newToken, existingPlayer.getNickname());
+		}
+
+		if (game.getStatus() != GameStatus.LOBBY) throw new GameException("A partida já começou.");
 
 		String playerToken = GameRepository.createToken();
 		String playerId = GameRepository.createToken();
-		jdbc.sql("""
-				INSERT INTO players (id, nickname, player_token)
-				VALUES (:id, :nickname, :playerToken)
-				""")
-				.param("id", playerId)
-				.param("nickname", cleanNickname)
-				.param("playerToken", playerToken)
-				.update();
-		jdbc.sql("INSERT INTO game_players (game_id, player_id) VALUES (:gameId, :playerId)")
-				.param("gameId", game.id())
-				.param("playerId", playerId)
-				.update();
+		Player player = new Player(playerId, cleanNickname, playerToken, Instant.now());
+		playerJpaRepository.save(player);
 
-		return new PlayerSession(game.code(), playerId, playerToken, cleanNickname);
+		GamePlayer gamePlayer = new GamePlayer(game, player);
+		gamePlayerJpaRepository.save(gamePlayer);
+
+		return new PlayerSession(game.getCode(), playerId, playerToken, cleanNickname);
+	}
+
+	@Transactional
+	public void removePlayerIfLobby(String code, String playerToken) {
+		if (playerToken == null) return;
+		Game game = gameJpaRepository.findByCode(code).orElse(null);
+		if (game == null || game.getStatus() != GameStatus.LOBBY) return;
+		Player player = playerJpaRepository.findByPlayerToken(playerToken).orElse(null);
+		if (player == null) return;
+		gamePlayerJpaRepository.findByGameIdAndPlayerId(game.getId(), player.getId())
+				.ifPresent(gamePlayerJpaRepository::delete);
 	}
 
 	public boolean verifyPlayer(String code, String playerToken) {
@@ -189,26 +215,17 @@ public class GameService {
 	}
 
 	public void startGame(String code) {
-		GameRow game = repository.getGame(code)
-				.filter(g -> g.status() == GameStatus.LOBBY)
+		Game game = gameJpaRepository.findByCode(code)
+				.filter(g -> g.getStatus() == GameStatus.LOBBY)
 				.orElseThrow(() -> new GameException("A partida não pode começar."));
-		QuestionRow question = repository.getQuestion(game.quizId(), 1)
+		QuestionRow question = repository.getQuestion(game.getQuiz().getId(), 1)
 				.orElseThrow(() -> new GameException("O quiz não possui perguntas."));
 
-		Instant startedAt = Instant.now();
-		Instant deadlineAt = startedAt.plusSeconds(question.durationSeconds());
-		int updated = jdbc.sql("""
-				UPDATE games
-				SET status = 'question', current_question_position = 1,
-				  question_started_at = :startedAt, question_deadline_at = :deadlineAt
-				WHERE id = :gameId AND status = 'lobby'
-				""")
-				.param("startedAt", toTimestamp(startedAt))
-				.param("deadlineAt", toTimestamp(deadlineAt))
-				.param("gameId", game.id())
-				.update();
-		if (updated != 1) throw new GameException("A partida não pode começar.");
-		reveals.schedule(game.id(), game.code(), deadlineAt);
+		game.start();
+		Instant deadlineAt = game.getQuestionStartedAt().plusSeconds(question.durationSeconds());
+		game.setQuestionDeadlineAt(deadlineAt);
+		gameJpaRepository.save(game);
+		reveals.schedule(game.getId(), game.getCode(), deadlineAt);
 	}
 
 	public int submitAnswer(String code, String playerToken, String choiceId) {
@@ -255,83 +272,80 @@ public class GameService {
 
 	/** Revela antes do prazo, somando os pontos de quem já respondeu. */
 	public void skipQuestion(String code) {
-		GameRow game = requireGame(code);
-		if (game.status() != GameStatus.QUESTION) {
+		Game game = gameJpaRepository.findByCode(code)
+				.orElseThrow(() -> new GameException("Sala não encontrada."));
+		if (game.getStatus() != GameStatus.QUESTION) {
 			throw new GameException("Não há pergunta em andamento para pular.");
 		}
 		reveals.revealCurrentQuestion(code);
-		jdbc.sql("UPDATE games SET question_deadline_at = NULL WHERE id = :gameId AND status = 'reveal'")
-				.param("gameId", game.id())
-				.update();
+		game.skipQuestion();
+		game.setQuestionDeadlineAt(null);
+		gameJpaRepository.save(game);
 	}
 
 	public void advanceGame(String code) {
-		GameRow game = requireGame(code);
-		if (game.status() == GameStatus.QUESTION) {
+		Game game = gameJpaRepository.findByCode(code)
+				.orElseThrow(() -> new GameException("Sala não encontrada."));
+		if (game.getStatus() == GameStatus.QUESTION) {
 			throw new GameException("Aguarde o tempo da pergunta terminar.");
 		}
-		if (game.status() != GameStatus.REVEAL) throw new GameException("A partida não pode avançar.");
+		if (game.getStatus() != GameStatus.REVEAL) throw new GameException("A partida não pode avançar.");
 
-		int nextPosition = game.currentQuestionPosition() + 1;
-		Optional<QuestionRow> nextQuestion = repository.getQuestion(game.quizId(), nextPosition);
+		int nextPosition = game.getCurrentQuestionPosition() + 1;
+		Optional<QuestionRow> nextQuestion = repository.getQuestion(game.getQuiz().getId(), nextPosition);
 		if (nextQuestion.isEmpty()) {
-			reveals.cancel(game.id());
-			jdbc.sql("UPDATE games SET status = 'finished', question_deadline_at = NULL WHERE id = :gameId")
-					.param("gameId", game.id())
-					.update();
+			reveals.cancel(game.getId());
+			game.finish();
+			game.setQuestionDeadlineAt(null);
+			gameJpaRepository.save(game);
 			return;
 		}
 
-		Instant startedAt = Instant.now();
-		Instant deadlineAt = startedAt.plusSeconds(nextQuestion.get().durationSeconds());
-		int updated = jdbc.sql("""
-				UPDATE games
-				SET status = 'question', current_question_position = :position,
-				  question_started_at = :startedAt, question_deadline_at = :deadlineAt
-				WHERE id = :gameId AND status = 'reveal'
-				""")
-				.param("position", nextPosition)
-				.param("startedAt", toTimestamp(startedAt))
-				.param("deadlineAt", toTimestamp(deadlineAt))
-				.param("gameId", game.id())
-				.update();
-		if (updated != 1) throw new GameException("A partida não pode avançar.");
-		reveals.schedule(game.id(), game.code(), deadlineAt);
+		game.nextQuestion();
+		Instant deadlineAt = game.getQuestionStartedAt().plusSeconds(nextQuestion.get().durationSeconds());
+		game.setQuestionDeadlineAt(deadlineAt);
+		gameJpaRepository.save(game);
+		reveals.schedule(game.getId(), game.getCode(), deadlineAt);
 	}
 
 	public void finishGame(String code) {
-		GameRow game = requireGame(code);
-		if (game.status() != GameStatus.QUESTION && game.status() != GameStatus.REVEAL) {
+		Game game = gameJpaRepository.findByCode(code)
+				.orElseThrow(() -> new GameException("Sala não encontrada."));
+		if (game.getStatus() != GameStatus.QUESTION && game.getStatus() != GameStatus.REVEAL) {
 			throw new GameException("O quiz não está em andamento.");
 		}
-		reveals.cancel(game.id());
-		jdbc.sql("""
-				UPDATE games
-				SET status = 'finished', question_deadline_at = NULL
-				WHERE id = :gameId AND status IN ('question', 'reveal')
-				""")
-				.param("gameId", game.id())
-				.update();
+		reveals.cancel(game.getId());
+		game.finish();
+		game.setQuestionDeadlineAt(null);
+		gameJpaRepository.save(game);
+	}
+
+	public void closeGame(String code) {
+		Game game = gameJpaRepository.findByCode(code).orElse(null);
+		if (game != null) {
+			reveals.cancel(game.getId());
+			game.finish();
+			game.setQuestionDeadlineAt(null);
+			gameJpaRepository.save(game);
+		}
 	}
 
 	@Transactional
 	public void restartGame(String code) {
-		GameRow game = requireGame(code);
-		if (game.status() != GameStatus.FINISHED) {
+		Game game = gameJpaRepository.findByCode(code)
+				.orElseThrow(() -> new GameException("Sala não encontrada."));
+		if (game.getStatus() != GameStatus.FINISHED) {
 			throw new GameException("A partida ainda não terminou.");
 		}
-		reveals.cancel(game.id());
-		jdbc.sql("DELETE FROM answers WHERE game_id = :gameId").param("gameId", game.id()).update();
-		jdbc.sql("UPDATE game_players SET score = 0 WHERE game_id = :gameId").param("gameId", game.id()).update();
-		int updated = jdbc.sql("""
-				UPDATE games
-				SET status = 'lobby', current_question_position = 0,
-				  question_started_at = NULL, question_deadline_at = NULL
-				WHERE id = :gameId AND status = 'finished'
-				""")
-				.param("gameId", game.id())
-				.update();
-		if (updated != 1) throw new GameException("A partida não pode reiniciar.");
+		reveals.cancel(game.getId());
+		jdbc.sql("DELETE FROM answers WHERE game_id = :gameId").param("gameId", game.getId()).update();
+		List<GamePlayer> players = gamePlayerJpaRepository.findByGameIdOrderByScoreDescJoinedAtAsc(game.getId());
+		for (GamePlayer gp : players) {
+			gp.resetScore();
+		}
+		gamePlayerJpaRepository.saveAll(players);
+		game.restart();
+		gameJpaRepository.save(game);
 	}
 
 	private GameRow requireGame(String code) {

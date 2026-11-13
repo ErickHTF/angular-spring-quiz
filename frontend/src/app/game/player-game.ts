@@ -38,7 +38,18 @@ import { Podium } from '../ui/podium';
 
       @let game = state();
       @if (!game) {
-        <app-loading-state />
+        @if (store.error()) {
+          <div class="empty-state">
+            <span class="empty-icon glow-element">OFF</span>
+            <h2>Partida encerrada</h2>
+            <p>{{ store.error() }}</p>
+            <button class="button button-primary" (click)="returnHome()" type="button">
+              Voltar ao início
+            </button>
+          </div>
+        } @else {
+          <app-loading-state />
+        }
       } @else {
         @if (game.status === 'lobby') {
           <div class="empty-state">
@@ -94,7 +105,7 @@ import { Podium } from '../ui/podium';
 
         @if (game.status === 'finished') {
           <div class="empty-state empty-state-compact">
-            <span class="empty-icon">🏆</span>
+            <span class="empty-icon glow-element">TOP</span>
             <h2>Fim de jogo</h2>
             <p>Parabéns! Veja o Top 3 do quiz:</p>
             <app-podium [players]="game.players" [highlightPlayerId]="playerId()" />
@@ -192,6 +203,10 @@ export class PlayerGame {
   protected async leaveRoom(): Promise<void> {
     if (!confirm('Sair da sala? Você não receberá mais atualizações do quiz.')) return;
     await this.api.leave(this.code()).catch(() => undefined);
+    await this.router.navigateByUrl('/');
+  }
+
+  protected async returnHome(): Promise<void> {
     await this.router.navigateByUrl('/');
   }
 }

@@ -154,11 +154,31 @@ public class GameController {
 	}
 
 	@PostMapping("/{code}/leave")
-	public ResponseEntity<?> leave(@PathVariable String code) {
+	public ResponseEntity<?> leave(@PathVariable String code, HttpServletRequest request) {
 		code = normalize(code);
 		HttpHeaders headers = new HttpHeaders();
+		Viewer viewer = authorizer.authorize(request, code);
 		SessionCookies.clear(headers, code);
-		notify(code);
+		if (viewer != null && viewer.role() == Role.HOST) {
+			games.closeGame(code);
+			broker.closeRoom(code);
+		} else if (viewer != null && viewer.role() == Role.PLAYER) {
+			games.removePlayerIfLobby(code, viewer.playerToken());
+			notify(code);
+		}
+		return ResponseEntity.ok().headers(headers).body(OK);
+	}
+
+	@PostMapping("/{code}/close")
+	public ResponseEntity<?> close(@PathVariable String code, HttpServletRequest request) {
+		code = normalize(code);
+		if (!authorizer.isHost(request, code)) {
+			return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ApiError("Apenas o host pode fechar a partida."));
+		}
+		games.closeGame(code);
+		broker.closeRoom(code);
+		HttpHeaders headers = new HttpHeaders();
+		SessionCookies.clear(headers, code);
 		return ResponseEntity.ok().headers(headers).body(OK);
 	}
 

@@ -90,14 +90,19 @@ const STATUS_LABELS: Record<GameStatus, string> = {
 
         @if (game.status === 'finished') {
           <div class="empty-state">
-            <span class="empty-icon">🏆</span>
+            <span class="empty-icon glow-element">TOP</span>
             <h2>Quiz encerrado</h2>
             <p>Parabéns! Veja o Top 3 do quiz:</p>
             <app-podium [players]="game.players" />
           </div>
-          <button class="button button-primary button-block" [disabled]="loading()" (click)="restartQuiz()" type="button">
-            {{ loading() ? 'Reiniciando...' : 'Jogar novamente' }}
-          </button>
+          <div class="actions-row">
+            <button class="button button-primary button-grow" [disabled]="loading()" (click)="restartQuiz()" type="button">
+              {{ loading() ? 'Reiniciando...' : 'Jogar novamente' }}
+            </button>
+            <button class="button button-danger" [disabled]="loading()" (click)="closeRoom()" type="button">
+              Fechar sala
+            </button>
+          </div>
         } @else {
           <div class="actions-row">
             @if (game.status !== 'question') {
@@ -164,7 +169,13 @@ export class HostGame {
   }
 
   protected async leaveRoom(): Promise<void> {
-    if (!confirm('Sair da sala? Você perderá o acesso de host a esta partida.')) return;
+    if (!confirm('Sair da sala? Isso encerrará a partida e desconectará todos os jogadores.')) return;
+    await this.api.leave(this.code()).catch(() => undefined);
+    await this.router.navigateByUrl('/');
+  }
+
+  protected async closeRoom(): Promise<void> {
+    if (!confirm('Fechar a sala agora? Todos os jogadores serão desconectados.')) return;
     await this.api.leave(this.code()).catch(() => undefined);
     await this.router.navigateByUrl('/');
   }

@@ -18,9 +18,13 @@ export class GameStateStore implements OnDestroy {
   readonly error = signal('');
   readonly connection = signal<ConnectionStatus>('connecting');
 
-  connect(code: string): void {
+  private currentRole: 'host' | 'player' | undefined;
+
+  connect(code: string, role?: 'host' | 'player'): void {
+    this.currentRole = role;
     this.source?.close();
-    const source = new EventSource(`/api/games/${code}/events`);
+    const url = role ? `/api/games/${code}/events?role=${role}` : `/api/games/${code}/events`;
+    const source = new EventSource(url);
 
     // O servidor já envia o estado assim que o stream abre (inclusive em cada reconexão);
     // o GET /state é redundante, mantido do original como segurança caso esse evento falhe.
@@ -31,6 +35,13 @@ export class GameStateStore implements OnDestroy {
     };
     source.addEventListener('state', (event) => {
       this.state.set(JSON.parse((event as MessageEvent<string>).data) as GameState);
+    });
+    source.addEventListener('closed', () => {
+      this.source?.close();
+      this.source = null;
+      this.connection.set('offline');
+      this.error.set('A partida foi encerrada pelo apresentador.');
+      this.state.set(null);
     });
     // O EventSource reconecta sozinho em quedas de rede; se o servidor responder com erro HTTP
     // (ex.: 401 com a sessão expirada), ele desiste e a mensagem abaixo fica na tela.
@@ -49,7 +60,7 @@ export class GameStateStore implements OnDestroy {
 
   private async loadState(code: string): Promise<void> {
     try {
-      this.state.set(await this.api.state(code));
+      this.state.set(await this.api.state(code, this.currentRole));
     } catch {
       this.error.set('Não foi possível carregar a partida.');
     }
