@@ -18,8 +18,17 @@ public class Authorizer {
 	public Viewer authorize(HttpServletRequest request, String code) {
 		String hostToken = SessionCookies.get(request, SessionCookies.hostName(code));
 		String playerToken = SessionCookies.get(request, SessionCookies.playerName(code));
-		if (games.verifyHost(code, hostToken)) return new Viewer(Role.HOST, playerToken);
-		if (games.verifyPlayer(code, playerToken)) return new Viewer(Role.PLAYER, playerToken);
+		String preferredRole = request.getHeader("X-Game-Role");
+		if (preferredRole == null || preferredRole.isBlank()) {
+			preferredRole = request.getParameter("role");
+		}
+		if ("player".equalsIgnoreCase(preferredRole)) {
+			if (games.verifyPlayer(code, playerToken)) return new Viewer(Role.PLAYER, playerToken);
+			if (games.verifyHost(code, hostToken)) return new Viewer(Role.HOST, playerToken);
+		} else {
+			if (games.verifyHost(code, hostToken)) return new Viewer(Role.HOST, playerToken);
+			if (games.verifyPlayer(code, playerToken)) return new Viewer(Role.PLAYER, playerToken);
+		}
 		return null;
 	}
 

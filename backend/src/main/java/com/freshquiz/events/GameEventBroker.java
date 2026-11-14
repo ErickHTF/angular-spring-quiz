@@ -57,6 +57,20 @@ public class GameEventBroker {
 		}
 	}
 
+	public void closeRoom(String code) {
+		Set<Subscriber> subscribers = connections.remove(code);
+		if (subscribers != null) {
+			for (Subscriber subscriber : subscribers) {
+				try {
+					subscriber.emitter().send(SseEmitter.event().name("closed").data("Partida encerrada"));
+					subscriber.emitter().complete();
+				}
+				catch (Exception ignored) {
+				}
+			}
+		}
+	}
+
 	/**
 	 * Comentário SSE periódico: mantém a conexão viva em proxies que fecham conexões ociosas e é
 	 * o que descobre clientes que sumiram. Uma escrita para um cliente morto costuma falhar só no

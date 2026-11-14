@@ -3,6 +3,7 @@ package com.freshquiz.quiz;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.HashSet;
@@ -15,6 +16,9 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.freshquiz.game.GameException;
+import com.freshquiz.model.Choice;
+import com.freshquiz.model.Question;
+import com.freshquiz.model.Quiz;
 import com.freshquiz.quiz.model.ChoiceDraft;
 import com.freshquiz.quiz.model.QuestionDraft;
 import com.freshquiz.quiz.model.QuizCreated;
@@ -39,9 +43,11 @@ public class QuizService {
 	public static final int LABEL_MAX = 120;
 
 	private final QuizRepository repository;
+	private final QuizJpaRepository quizJpaRepository;
 
-	public QuizService(QuizRepository repository) {
+	public QuizService(QuizRepository repository, QuizJpaRepository quizJpaRepository) {
 		this.repository = repository;
+		this.quizJpaRepository = quizJpaRepository;
 	}
 
 	public List<QuizSummary> listQuizzes() {
@@ -61,8 +67,8 @@ public class QuizService {
 
 	public boolean verifyOwner(String quizId, String token) {
 		if (quizId == null || token == null) return false;
-		return repository.findOwnerTokenHash(quizId)
-				.map(hash -> isHashMatch(hash, token))
+		return quizJpaRepository.findById(quizId)
+				.map(q -> q.isOwner(token))
 				.orElse(false);
 	}
 
@@ -92,42 +98,61 @@ public class QuizService {
 
 	@Transactional
 	public QuizCreated createQuiz(QuizDraft draft) {
-		QuizDraft quiz = normalize(draft);
+		QuizDraft quizDraft = normalize(draft);
 
 		String quizId = QuizRepository.createId();
 		String ownerToken = UUID.randomUUID().toString();
 		String hash = hashToken(ownerToken);
 
-		repository.insertQuiz(quizId, quiz.title(), hash);
-		persistQuestions(quizId, quiz.questions());
+		Quiz quiz = new Quiz(quizId, quizDraft.title(), hash, Instant.now());
+		for (QuestionDraft qDraft : quizDraft.questions()) {
+			Question question = quiz.addQuestion(qDraft.prompt(), qDraft.durationSeconds());
+			for (ChoiceDraft cDraft : qDraft.choices()) {
+				question.addChoice(cDraft.label(), cDraft.isCorrect());
+			}
+		}
+		quizJpaRepository.save(quiz);
 
-		QuizSummary summary = new QuizSummary(quizId, quiz.title(), quiz.questions().size(), true);
+		QuizSummary summary = new QuizSummary(quizId, quizDraft.title(), quizDraft.questions().size(), true);
 		return new QuizCreated(summary, ownerToken);
 	}
 
 	@Transactional
 	public QuizSummary updateQuiz(String quizId, QuizDraft draft, String token) {
-		if (!verifyOwner(quizId, token)) {
+		Quiz quiz = quizJpaRepository.findById(quizId)
+				.orElseThrow(() -> new GameException("Quiz não encontrado."));
+
+		if (!quiz.isOwner(token)) {
 			throw new GameException("Você não tem permissão para editar este quiz.");
 		}
 
-		QuizDraft quiz = normalize(draft);
-		repository.updateQuizTitle(quizId, quiz.title());
+		QuizDraft normalized = normalize(draft);
+		quiz.updateTitle(normalized.title());
 		repository.deleteQuestions(quizId);
-		persistQuestions(quizId, quiz.questions());
+		quiz.getQuestions().clear();
+		for (QuestionDraft qDraft : normalized.questions()) {
+			Question question = quiz.addQuestion(qDraft.prompt(), qDraft.durationSeconds());
+			for (ChoiceDraft cDraft : qDraft.choices()) {
+				question.addChoice(cDraft.label(), cDraft.isCorrect());
+			}
+		}
+		quizJpaRepository.save(quiz);
 
-		return new QuizSummary(quizId, quiz.title(), quiz.questions().size(), true);
+		return new QuizSummary(quizId, normalized.title(), normalized.questions().size(), true);
 	}
 
 	@Transactional
 	public void deleteQuiz(String quizId, String token) {
-		if (!verifyOwner(quizId, token)) {
+		Quiz quiz = quizJpaRepository.findById(quizId)
+				.orElseThrow(() -> new GameException("Quiz não encontrado."));
+
+		if (!quiz.isOwner(token)) {
 			throw new GameException("Você não tem permissão para excluir este quiz.");
 		}
-		if (repository.hasGames(quizId)) {
+		if (!quiz.canDelete() || repository.hasGames(quizId)) {
 			throw new GameException("Não é possível excluir um quiz que já possui partidas registradas.");
 		}
-		repository.deleteQuiz(quizId);
+		quizJpaRepository.delete(quiz);
 	}
 
 	private void persistQuestions(String quizId, List<QuestionDraft> questions) {

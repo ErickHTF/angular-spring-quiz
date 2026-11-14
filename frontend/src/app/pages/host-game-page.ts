@@ -40,12 +40,12 @@ export class HostGamePage implements OnInit {
     const code = this.code().toUpperCase();
     this.roomCode.set(code);
     this.title.setTitle(`Sala ${code} | Fresh Quiz`);
-    const me = await this.api.me(code).catch(() => null);
+    const me = await this.api.me(code, 'host').catch(() => null);
     if (me?.role !== 'host') {
       await this.router.navigateByUrl('/host');
       return;
     }
-    this.store.connect(code);
+    this.store.connect(code, 'host');
     this.ready.set(true);
   }
 }

@@ -41,12 +41,14 @@ export class GameApi {
     ));
   }
 
-  me(code: string): Promise<Me> {
-    return this.call(this.http.get<Me>(`/api/games/${code}/me`));
+  me(code: string, role?: 'host' | 'player'): Promise<Me> {
+    const options = role ? { params: { role }, headers: { 'X-Game-Role': role } } : {};
+    return this.call(this.http.get<Me>(`/api/games/${code}/me`, options));
   }
 
-  state(code: string): Promise<GameState> {
-    return this.call(this.http.get<GameState>(`/api/games/${code}/state`));
+  state(code: string, role?: 'host' | 'player'): Promise<GameState> {
+    const options = role ? { params: { role }, headers: { 'X-Game-Role': role } } : {};
+    return this.call(this.http.get<GameState>(`/api/games/${code}/state`, options));
   }
 
   hostAction(code: string, action: HostAction): Promise<unknown> {
